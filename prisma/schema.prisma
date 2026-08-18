@@ -1,13 +1,211 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
+  moduleFormat = "esm"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  CASHIER
+  ADMIN
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+enum PaymentMethod {
+  TELEBIRR
+  MPESA
+  BANK_TRANSFER
+  CASH
+}
+
+enum PaymentType {
+  DEPOSIT
+  BALANCE
+  FULL_PAYMENT
+  REFUND
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_RECEIVED
+  PAYMENT_DUE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  fullName     String
+  phone        String   @unique
+  email        String?  @unique
+  nationalId   String   @unique
+  nationality  String
+  passwordHash String
+  role         UserRole @default(CUSTOMER)
+  isActive     Boolean  @default(true)
+
+  bookings      Booking[]
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+model RoomType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  amenities   String[]
+  images      String[]
+
+  rooms Room[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Room {
+  id         String     @id @default(uuid())
+  roomNumber String     @unique
+  floor      Int
+  status     RoomStatus @default(AVAILABLE)
+
+  roomTypeId String
+  roomType   RoomType @relation(fields: [roomTypeId], references: [id])
+
+  bookings BookingRoom[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roomTypeId])
+  @@index([status])
+}
+
+model Booking {
+  id               String @id @default(uuid())
+  bookingReference String @unique
+
+  customerId String
+  customer   User   @relation(fields: [customerId], references: [id])
+
+  checkIn  DateTime
+  checkOut DateTime
+
+  status      BookingStatus @default(PENDING)
+  totalAmount Decimal       @db.Decimal(10, 2)
+
+  rooms    BookingRoom[]
+  guests   Guest[]
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([checkIn, checkOut])
+  @@index([status])
+}
+
+model BookingRoom {
+  id String @id @default(uuid())
+
+  bookingId String
+  roomId    String
+
+  checkIn  DateTime
+  checkOut DateTime
+  isActive Boolean  @default(true)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  room    Room    @relation(fields: [roomId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([bookingId, roomId])
+  @@index([roomId, checkIn, checkOut])
+}
+
+model Guest {
+  id String @id @default(uuid())
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  fullName    String
+  phone       String
+  nationalId  String
+  nationality String
+  email       String?
+  isPrimary   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([nationalId])
+}
+
+model Payment {
+  id String @id @default(uuid())
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentType   PaymentType
+  paymentMethod PaymentMethod
+  status        PaymentStatus @default(PENDING)
+
+  gatewayReference String?
+  paidAt           DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  message String
+  isRead  Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
 }
