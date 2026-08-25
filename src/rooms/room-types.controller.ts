@@ -20,15 +20,8 @@ import { UpdateRoomTypeDto } from './dto/update-room-type.dto.js';
 import { RoomsService } from './rooms.service.js';
 
 @Controller('room-types')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
 export class RoomTypesController {
   constructor(private readonly roomsService: RoomsService) {}
-
-  @Post()
-  create(@Body() dto: CreateRoomTypeDto) {
-    return this.roomsService.createRoomType(dto);
-  }
 
   @Get()
   findAll() {
@@ -40,6 +33,15 @@ export class RoomTypesController {
     return this.roomsService.findRoomTypeById(id);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post()
+  create(@Body() dto: CreateRoomTypeDto) {
+    return this.roomsService.createRoomType(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -48,6 +50,8 @@ export class RoomTypesController {
     return this.roomsService.updateRoomType(id, dto);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.roomsService.deleteRoomType(id);
