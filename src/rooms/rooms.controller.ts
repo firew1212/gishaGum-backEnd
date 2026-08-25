@@ -22,12 +22,16 @@ import { RoomsService } from './rooms.service.js';
 
 import { CheckAvailabilityDto } from './dto/check-availability.dto.js';
 
+
+
+
 @Controller('rooms')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+
 export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Post()
   create(@Body() dto: CreateRoomDto) {
     return this.roomsService.createRoom(dto);
@@ -45,6 +49,8 @@ export class RoomsController {
     return this.roomsService.findRoomById(id);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+ @Roles(UserRole.ADMIN)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -53,6 +59,9 @@ export class RoomsController {
     return this.roomsService.updateRoom(id, dto);
   }
 
+
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.roomsService.deleteRoom(id);
