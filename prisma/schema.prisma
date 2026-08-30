@@ -40,13 +40,11 @@ enum PaymentType {
   DEPOSIT
   BALANCE
   FULL_PAYMENT
-  REFUND
 }
 
 enum PaymentStatus {
   PENDING
   PAID
-  REFUNDED
   FAILED
 }
 
@@ -57,12 +55,6 @@ enum NotificationType {
   PAYMENT_DUE
 }
 
-enum RefundStatus {
-  INITIATED
-  PROCESSING
-  REFUNDED
-  REVERSED
-}
 
 model User {
   id           String   @id @default(uuid())
@@ -172,6 +164,7 @@ model Guest {
   nationality String
   email       String?
   isPrimary   Boolean @default(false)
+  isActive    Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -191,30 +184,25 @@ model Payment {
   paymentMethod PaymentMethod
   status        PaymentStatus @default(PENDING)
 
-  // Our unique transaction reference sent to Chapa.
+  // Internal transaction reference.
+  // Chapa uses this for online payments.
+  // Manual payments also receive an internal reference.
   txRef String @unique
 
-  // Chapa's payment reference returned after initialization.
+  // Chapa payment reference.
+  // Null for manual cash/bank-transfer payments.
   gatewayReference String?
 
-  // Chapa's refund reference returned by the refund API.
-  refundReference String?
-
-  // Current refund lifecycle.
-  refundStatus RefundStatus?
-
-  paidAt     DateTime?
-  refundedAt DateTime?
+  paidAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([bookingId])
   @@index([status])
+  @@index([paymentMethod])
   @@index([createdAt])
-  @@index([refundStatus])
 }
-
 model Notification {
   id String @id @default(uuid())
 
