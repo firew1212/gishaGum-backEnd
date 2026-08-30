@@ -9,18 +9,16 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import type { Request } from 'express';
+
 import { UserRole } from '../../generated/prisma/client.js';
 
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 
-import { UpdateBookingStatusDto } from './dto/update-booking-status.dto.js';
-
-import type { Request } from 'express';
-
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-
 import { CreateBookingDto } from './dto/create-booking.dto.js';
+import { UpdateBookingStatusDto } from './dto/update-booking-status.dto.js';
 import { BookingsService } from './bookings.service.js';
 
 @Controller('bookings')
@@ -30,6 +28,10 @@ export class BookingsController {
     private readonly bookingsService: BookingsService,
   ) {}
 
+  // ==================================================
+  // CUSTOMER — CREATE BOOKING
+  // ==================================================
+
   @Post()
   create(
     @Req() request: Request,
@@ -37,7 +39,6 @@ export class BookingsController {
   ) {
     const user = request.user as {
       id: string;
-      role: string;
     };
 
     return this.bookingsService.createBooking(
@@ -45,6 +46,10 @@ export class BookingsController {
       dto,
     );
   }
+
+  // ==================================================
+  // CUSTOMER — MY BOOKINGS
+  // ==================================================
 
   @Get('my')
   findMyBookings(@Req() request: Request) {
@@ -56,6 +61,10 @@ export class BookingsController {
       user.id,
     );
   }
+
+  // ==================================================
+  // CUSTOMER — SINGLE BOOKING
+  // ==================================================
 
   @Get('my/:id')
   findMyBooking(
@@ -72,6 +81,10 @@ export class BookingsController {
     );
   }
 
+  // ==================================================
+  // CUSTOMER — CANCEL BOOKING
+  // ==================================================
+
   @Patch(':id/cancel')
   cancel(
     @Req() request: Request,
@@ -87,34 +100,76 @@ export class BookingsController {
     );
   }
 
+  // ==================================================
+  // ADMIN / CASHIER — ALL BOOKINGS
+  // ==================================================
+
   @Get()
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.CASHIER)
-findAllBookings() {
-  return this.bookingsService.findAllBookings();
-}
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.CASHIER)
+  findAllBookings() {
+    return this.bookingsService.findAllBookings();
+  }
 
-@Get(':id')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.CASHIER)
-findBookingById(
-  @Param('id') bookingId: string,
-) {
-  return this.bookingsService.findBookingById(
-    bookingId,
-  );
-}
+  // ==================================================
+  // ADMIN / CASHIER — SINGLE BOOKING
+  // ==================================================
 
-@Patch(':id/status')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.CASHIER)
-updateStatus(
-  @Param('id') bookingId: string,
-  @Body() dto: UpdateBookingStatusDto,
-) {
-  return this.bookingsService.updateBookingStatus(
-    bookingId,
-    dto.status,
-  );
-}
+  @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.CASHIER)
+  findBookingById(
+    @Param('id') bookingId: string,
+  ) {
+    return this.bookingsService.findBookingById(
+      bookingId,
+    );
+  }
+
+  // ==================================================
+  // ADMIN / CASHIER — UPDATE STATUS
+  // ==================================================
+
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.CASHIER)
+  updateStatus(
+    @Param('id') bookingId: string,
+    @Body() dto: UpdateBookingStatusDto,
+  ) {
+    return this.bookingsService.updateBookingStatus(
+      bookingId,
+      dto.status,
+    );
+  }
+
+  // ==================================================
+  // ADMIN / CASHIER — CHECK IN
+  // ==================================================
+
+  @Patch(':id/check-in')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.CASHIER)
+  checkInBooking(
+    @Param('id') bookingId: string,
+  ) {
+    return this.bookingsService.checkInBooking(
+      bookingId,
+    );
+  }
+
+  // ==================================================
+  // ADMIN / CASHIER — CHECK OUT
+  // ==================================================
+
+  @Patch(':id/check-out')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.CASHIER)
+  checkOutBooking(
+    @Param('id') bookingId: string,
+  ) {
+    return this.bookingsService.checkOutBooking(
+      bookingId,
+    );
+  }
 }
