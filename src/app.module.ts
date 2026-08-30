@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { RoomsModule } from './rooms/rooms.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
+import { PaymentsModule } from './payments/payments.module.js';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { BookingsModule } from './bookings/bookings.module.js';
    AuthModule,
    RoomsModule,
    BookingsModule,
+   PaymentsModule,
    ConfigModule.forRoot({
       isGlobal: true,
     }),
