@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,7 +18,9 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 
 import { InitializePaymentDto } from './dto/initialize-payment.dto.js';
-import { RefundPaymentDto } from './dto/refund-payment.dto.js';
+import { ManualPaymentDto } from './dto/manual-payment.dto.js';
+import { PaymentFilterDto } from './dto/payment-filter.dto.js';
+
 import { PaymentsService } from './payments.service.js';
 
 @Controller('payments')
@@ -27,7 +30,7 @@ export class PaymentsController {
   ) {}
 
   // ==================================================
-  // CUSTOMER
+  // CUSTOMER — INITIALIZE ONLINE PAYMENT
   // ==================================================
 
   @UseGuards(JwtAuthGuard)
@@ -46,6 +49,10 @@ export class PaymentsController {
     );
   }
 
+  // ==================================================
+  // CUSTOMER — MY PAYMENTS
+  // ==================================================
+
   @UseGuards(JwtAuthGuard)
   @Get('my')
   findMyPayments(
@@ -59,6 +66,10 @@ export class PaymentsController {
       user.id,
     );
   }
+
+  // ==================================================
+  // CUSTOMER — VERIFY CHAPA PAYMENT
+  // ==================================================
 
   @UseGuards(JwtAuthGuard)
   @Get('verify/:txRef')
@@ -77,7 +88,7 @@ export class PaymentsController {
   }
 
   // ==================================================
-  // CHAPA CALLBACK
+  // CHAPA — CALLBACK
   // ==================================================
 
   @Post('chapa/callback')
@@ -90,72 +101,47 @@ export class PaymentsController {
   }
 
   // ==================================================
-  // ADMIN / CASHIER
+  // ADMIN — ALL PAYMENTS
   // ==================================================
 
-  @UseGuards(
-    JwtAuthGuard,
-    RolesGuard,
-  )
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.CASHIER,
-  )
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Get()
-  findAllPayments() {
-    return this.paymentsService.findAllPayments();
-  }
-
-  @UseGuards(
-    JwtAuthGuard,
-    RolesGuard,
-  )
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.CASHIER,
-  )
-  @Get(':id/refund/verify')
-  verifyRefund(
-    @Param('id') paymentId: string,
+  findAllPayments(
+    @Query() filters: PaymentFilterDto,
   ) {
-    return this.paymentsService.verifyRefund(
-      paymentId,
+    return this.paymentsService.findAllPayments(
+      filters,
     );
   }
 
-  @UseGuards(
-    JwtAuthGuard,
-    RolesGuard,
-  )
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.CASHIER,
-  )
-  @Post(':id/refund')
-  refundPayment(
-    @Param('id') paymentId: string,
-    @Body() dto: RefundPaymentDto,
-  ) {
-    return this.paymentsService.refundPayment(
-      paymentId,
-      dto,
-    );
-  }
+  // ==================================================
+  // ADMIN — PAYMENT DETAILS
+  // ==================================================
 
-  @UseGuards(
-    JwtAuthGuard,
-    RolesGuard,
-  )
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.CASHIER,
-  )
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Get(':id')
   findPaymentById(
     @Param('id') paymentId: string,
   ) {
     return this.paymentsService.findPaymentById(
       paymentId,
+    );
+  }
+
+  // ==================================================
+  // ADMIN — MANUAL PAYMENT
+  // ==================================================
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Post('manual')
+  createManualPayment(
+    @Body() dto: ManualPaymentDto,
+  ) {
+    return this.paymentsService.createManualPayment(
+      dto,
     );
   }
 }
