@@ -37,7 +37,7 @@ export class AuthController {
     return request.user;
   }
 
-  @Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN)
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Get('admin-test')
 adminTest() {

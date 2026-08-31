@@ -796,4 +796,152 @@ export class BookingsService {
       }
     }
   }
+
+  // ==================================================
+// CASHIER / ADMIN — CHECK IN
+// ==================================================
+
+async checkInBooking(bookingId: string) {
+  const booking =
+    await this.prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+      },
+      include: {
+        rooms: {
+          include: {
+            room: true,
+          },
+        },
+      },
+    });
+
+  if (!booking) {
+    throw new NotFoundException(
+      'Booking not found',
+    );
+  }
+
+  // A booking must be confirmed before check-in.
+  if (
+    booking.status !==
+    BookingStatus.CONFIRMED
+  ) {
+    throw new ConflictException(
+      'Only confirmed bookings can be checked in',
+    );
+  }
+
+  // Make sure all assigned rooms are available.
+  const unavailableRoom =
+    booking.rooms.find(
+      (bookingRoom) =>
+        bookingRoom.room.status !==
+        RoomStatus.AVAILABLE,
+    );
+
+  if (unavailableRoom) {
+    throw new ConflictException(
+      `Room ${unavailableRoom.room.roomNumber} is not available for check-in`,
+    );
+  }
+
+  return this.prisma.$transaction(
+    async (tx) => {
+      // Update booking status.
+      const updatedBooking =
+        await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+          data: {
+            status:
+              BookingStatus.CHECKED_IN,
+          },
+        });
+
+      // Mark all assigned rooms occupied.
+      for (const bookingRoom of booking.rooms) {
+        await tx.room.update({
+          where: {
+            id: bookingRoom.room.id,
+          },
+          data: {
+            status:
+              RoomStatus.OCCUPIED,
+          },
+        });
+      }
+
+      return updatedBooking;
+    },
+  );
+}
+
+// ==================================================
+// CASHIER / ADMIN — CHECK OUT
+// ==================================================
+
+async checkOutBooking(bookingId: string) {
+  const booking =
+    await this.prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+      },
+      include: {
+        rooms: {
+          include: {
+            room: true,
+          },
+        },
+      },
+    });
+
+  if (!booking) {
+    throw new NotFoundException(
+      'Booking not found',
+    );
+  }
+
+  // A guest must be checked in before checkout.
+  if (
+    booking.status !==
+    BookingStatus.CHECKED_IN
+  ) {
+    throw new ConflictException(
+      'Only checked-in bookings can be checked out',
+    );
+  }
+
+  return this.prisma.$transaction(
+    async (tx) => {
+      // Update booking status.
+      const updatedBooking =
+        await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+          data: {
+            status:
+              BookingStatus.CHECKED_OUT,
+          },
+        });
+
+      // Release all assigned rooms.
+      for (const bookingRoom of booking.rooms) {
+        await tx.room.update({
+          where: {
+            id: bookingRoom.room.id,
+          },
+          data: {
+            status:
+              RoomStatus.AVAILABLE,
+          },
+        });
+      }
+
+      return updatedBooking;
+    },
+  );
+}
 }
