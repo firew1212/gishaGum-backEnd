@@ -12,6 +12,7 @@ import {
   PaymentMethod,
   PaymentStatus,
   PaymentType,
+  NotificationType,
 } from '../../generated/prisma/client.js';
 
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -22,11 +23,14 @@ import { InitializePaymentDto } from './dto/initialize-payment.dto.js';
 import { ManualPaymentDto } from './dto/manual-payment.dto.js';
 import { PaymentFilterDto } from './dto/payment-filter.dto.js';
 
+import { NotificationsService } from '../notifications/notifications.service.js';
+
 @Injectable()
 export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly chapaService: ChapaService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   // ==================================================
@@ -37,10 +41,6 @@ export class PaymentsService {
     customerId: string,
     dto: InitializePaymentDto,
   ) {
-    // ------------------------------------------------
-    // 1. Online payment must use Chapa-supported flow
-    // ------------------------------------------------
-
     if (
       dto.paymentMethod === PaymentMethod.CASH ||
       dto.paymentMethod === PaymentMethod.BANK_TRANSFER
@@ -49,10 +49,6 @@ export class PaymentsService {
         'Cash and bank transfer payments must be recorded manually',
       );
     }
-
-    // ------------------------------------------------
-    // 2. Find booking belonging to customer
-    // ------------------------------------------------
 
     const booking =
       await this.prisma.booking.findFirst({
@@ -85,10 +81,6 @@ export class PaymentsService {
       );
     }
 
-    // ------------------------------------------------
-    // 3. Validate booking status
-    // ------------------------------------------------
-
     if (
       booking.status === BookingStatus.CANCELLED
     ) {
@@ -105,10 +97,6 @@ export class PaymentsService {
       );
     }
 
-    // ------------------------------------------------
-    // 4. Calculate payment amount
-    // ------------------------------------------------
-
     const amount =
       this.calculatePaymentAmount(
         booking.totalAmount,
@@ -122,83 +110,57 @@ export class PaymentsService {
       );
     }
 
-    // ------------------------------------------------
-    // 5. Generate our transaction reference
-    // ------------------------------------------------
-
     const txRef =
       this.generateTransactionReference();
-
-    // ------------------------------------------------
-    // 6. Create PENDING payment
-    // ------------------------------------------------
 
     const payment =
       await this.prisma.payment.create({
         data: {
           bookingId: booking.id,
-
           amount,
-
-          paymentType:
-            dto.paymentType,
-
-          paymentMethod:
-            dto.paymentMethod,
-
-          status:
-            PaymentStatus.PENDING,
-
+          paymentType: dto.paymentType,
+          paymentMethod: dto.paymentMethod,
+          status: PaymentStatus.PENDING,
           txRef,
         },
       });
 
     try {
-      // ------------------------------------------------
-      // 7. Initialize transaction with Chapa
-      // ------------------------------------------------
-
       const chapaResponse =
-        await this.chapaService.initializeTransaction(
-          {
-            amount: amount.toFixed(2),
+        await this.chapaService.initializeTransaction({
+          amount: amount.toFixed(2),
 
-            currency: 'ETB',
+          currency: 'ETB',
 
-            email:
-              booking.customer.email ??
-              undefined,
+          email:
+            booking.customer.email ??
+            undefined,
 
-            first_name:
-              this.getFirstName(
-                booking.customer.fullName,
-              ),
+          first_name:
+            this.getFirstName(
+              booking.customer.fullName,
+            ),
 
-            last_name:
-              this.getLastName(
-                booking.customer.fullName,
-              ),
+          last_name:
+            this.getLastName(
+              booking.customer.fullName,
+            ),
 
-            phone_number:
-              booking.customer.phone,
+          phone_number:
+            booking.customer.phone,
 
-            tx_ref: txRef,
+          tx_ref: txRef,
 
-            callback_url:
-              this.getRequiredConfig(
-                'CHAPA_CALLBACK_URL',
-              ),
+          callback_url:
+            this.getRequiredConfig(
+              'CHAPA_CALLBACK_URL',
+            ),
 
-            return_url:
-              this.getRequiredConfig(
-                'CHAPA_RETURN_URL',
-              ),
-          },
-        );
-
-      // ------------------------------------------------
-      // 8. Chapa must return checkout URL
-      // ------------------------------------------------
+          return_url:
+            this.getRequiredConfig(
+              'CHAPA_RETURN_URL',
+            ),
+        });
 
       const checkoutUrl =
         chapaResponse.data?.checkout_url;
@@ -210,8 +172,7 @@ export class PaymentsService {
           },
 
           data: {
-            status:
-              PaymentStatus.FAILED,
+            status: PaymentStatus.FAILED,
           },
         });
 
@@ -219,10 +180,6 @@ export class PaymentsService {
           'Chapa did not return a checkout URL',
         );
       }
-
-      // ------------------------------------------------
-      // 9. Save Chapa reference if available
-      // ------------------------------------------------
 
       const gatewayReference =
         chapaResponse.data?.reference;
@@ -238,10 +195,6 @@ export class PaymentsService {
           },
         });
       }
-
-      // ------------------------------------------------
-      // 10. Return checkout information
-      // ------------------------------------------------
 
       return {
         success: true,
@@ -259,18 +212,13 @@ export class PaymentsService {
         checkoutUrl,
       };
     } catch (error) {
-      // ------------------------------------------------
-      // Mark payment FAILED if initialization failed
-      // ------------------------------------------------
-
       await this.prisma.payment.update({
         where: {
           id: payment.id,
         },
 
         data: {
-          status:
-            PaymentStatus.FAILED,
+          status: PaymentStatus.FAILED,
         },
       });
 
@@ -286,10 +234,6 @@ export class PaymentsService {
     customerId: string,
     txRef: string,
   ) {
-    // ------------------------------------------------
-    // 1. Find our payment
-    // ------------------------------------------------
-
     const payment =
       await this.prisma.payment.findUnique({
         where: {
@@ -313,10 +257,6 @@ export class PaymentsService {
       );
     }
 
-    // ------------------------------------------------
-    // 2. Make sure this payment belongs to customer
-    // ------------------------------------------------
-
     if (
       payment.booking.customerId !==
       customerId
@@ -327,7 +267,7 @@ export class PaymentsService {
     }
 
     // ------------------------------------------------
-    // 3. Already paid — do not process twice
+    // Already paid — idempotency
     // ------------------------------------------------
 
     if (
@@ -351,10 +291,6 @@ export class PaymentsService {
       };
     }
 
-    // ------------------------------------------------
-    // 4. Ask Chapa for current status
-    // ------------------------------------------------
-
     const chapaResponse =
       await this.chapaService.verifyTransaction(
         txRef,
@@ -371,7 +307,7 @@ export class PaymentsService {
       chapaResponse.data?.reference;
 
     // ------------------------------------------------
-    // 5. Successful payment
+    // Successful payment
     // ------------------------------------------------
 
     if (
@@ -387,8 +323,7 @@ export class PaymentsService {
           },
 
           data: {
-            status:
-              PaymentStatus.PAID,
+            status: PaymentStatus.PAID,
 
             paidAt:
               payment.paidAt ??
@@ -399,6 +334,21 @@ export class PaymentsService {
               payment.gatewayReference,
           },
         });
+
+      // ------------------------------------------------
+      // AUTOMATIC PAYMENT NOTIFICATION
+      // ------------------------------------------------
+
+      await this.notificationsService.createNotification({
+        userId:
+          payment.booking.customerId,
+
+        type:
+          NotificationType.PAYMENT_RECEIVED,
+
+        message:
+          `Payment of ${Number(payment.amount).toFixed(2)} ETB has been received successfully.`,
+      });
 
       return {
         success: true,
@@ -423,7 +373,7 @@ export class PaymentsService {
     }
 
     // ------------------------------------------------
-    // 6. Failed / cancelled payment
+    // Failed / cancelled payment
     // ------------------------------------------------
 
     if (
@@ -467,7 +417,7 @@ export class PaymentsService {
     }
 
     // ------------------------------------------------
-    // 7. Still pending
+    // Still pending
     // ------------------------------------------------
 
     return {
@@ -496,10 +446,6 @@ export class PaymentsService {
   async handleChapaCallback(
     body: unknown,
   ) {
-    // ------------------------------------------------
-    // 1. Safely read callback body
-    // ------------------------------------------------
-
     if (
       !body ||
       typeof body !== 'object'
@@ -512,7 +458,6 @@ export class PaymentsService {
     const payload =
       body as Record<string, unknown>;
 
-    // Chapa may send tx_ref in the payload.
     const txRef =
       typeof payload.tx_ref === 'string'
         ? payload.tx_ref
@@ -534,14 +479,18 @@ export class PaymentsService {
       );
     }
 
-    // ------------------------------------------------
-    // 2. Find our payment
-    // ------------------------------------------------
-
     const payment =
       await this.prisma.payment.findUnique({
         where: {
           txRef,
+        },
+
+        include: {
+          booking: {
+            select: {
+              customerId: true,
+            },
+          },
         },
       });
 
@@ -552,7 +501,7 @@ export class PaymentsService {
     }
 
     // ------------------------------------------------
-    // 3. Idempotency
+    // Idempotency
     // ------------------------------------------------
 
     if (
@@ -568,7 +517,7 @@ export class PaymentsService {
     }
 
     // ------------------------------------------------
-    // 4. Successful callback
+    // Successful callback
     // ------------------------------------------------
 
     if (
@@ -596,6 +545,21 @@ export class PaymentsService {
         },
       });
 
+      // ------------------------------------------------
+      // AUTOMATIC PAYMENT NOTIFICATION
+      // ------------------------------------------------
+
+      await this.notificationsService.createNotification({
+        userId:
+          payment.booking.customerId,
+
+        type:
+          NotificationType.PAYMENT_RECEIVED,
+
+        message:
+          `Payment of ${Number(payment.amount).toFixed(2)} ETB has been received successfully.`,
+      });
+
       return {
         success: true,
 
@@ -605,7 +569,7 @@ export class PaymentsService {
     }
 
     // ------------------------------------------------
-    // 5. Failed / cancelled callback
+    // Failed / cancelled callback
     // ------------------------------------------------
 
     if (
@@ -637,7 +601,7 @@ export class PaymentsService {
     }
 
     // ------------------------------------------------
-    // 6. Pending / unknown status
+    // Pending / unknown status
     // ------------------------------------------------
 
     return {
@@ -716,27 +680,15 @@ export class PaymentsService {
       };
     } = {};
 
-    // ------------------------------------------------
-    // Filter by status
-    // ------------------------------------------------
-
     if (filters.status) {
       where.status =
         filters.status;
     }
 
-    // ------------------------------------------------
-    // Filter by payment method
-    // ------------------------------------------------
-
     if (filters.paymentMethod) {
       where.paymentMethod =
         filters.paymentMethod;
     }
-
-    // ------------------------------------------------
-    // Filter by date range
-    // ------------------------------------------------
 
     if (
       filters.from ||
@@ -878,10 +830,6 @@ export class PaymentsService {
       );
     }
 
-    // ------------------------------------------------
-    // Calculate payment summary
-    // ------------------------------------------------
-
     const totalAmount =
       Number(
         payment.booking.totalAmount,
@@ -932,10 +880,6 @@ export class PaymentsService {
   async createManualPayment(
     dto: ManualPaymentDto,
   ) {
-    // ------------------------------------------------
-    // 1. Only CASH and BANK_TRANSFER
-    // ------------------------------------------------
-
     if (
       dto.paymentMethod !==
         PaymentMethod.CASH &&
@@ -946,10 +890,6 @@ export class PaymentsService {
         'Manual payment only supports CASH or BANK_TRANSFER',
       );
     }
-
-    // ------------------------------------------------
-    // 2. Find booking
-    // ------------------------------------------------
 
     const booking =
       await this.prisma.booking.findUnique({
@@ -973,10 +913,6 @@ export class PaymentsService {
       );
     }
 
-    // ------------------------------------------------
-    // 3. Validate booking status
-    // ------------------------------------------------
-
     if (
       booking.status ===
       BookingStatus.CANCELLED
@@ -994,10 +930,6 @@ export class PaymentsService {
         'Checked-out booking cannot receive payment',
       );
     }
-
-    // ------------------------------------------------
-    // 4. Calculate already-paid amount
-    // ------------------------------------------------
 
     const totalAmount =
       Number(
@@ -1023,10 +955,6 @@ export class PaymentsService {
         0,
       );
 
-    // ------------------------------------------------
-    // 5. Validate amount
-    // ------------------------------------------------
-
     if (dto.amount <= 0) {
       throw new BadRequestException(
         'Payment amount must be greater than zero',
@@ -1039,16 +967,8 @@ export class PaymentsService {
       );
     }
 
-    // ------------------------------------------------
-    // 6. Create internal transaction reference
-    // ------------------------------------------------
-
     const txRef =
       this.generateManualReference();
-
-    // ------------------------------------------------
-    // 7. Create PAID manual payment
-    // ------------------------------------------------
 
     const payment =
       await this.prisma.payment.create({
@@ -1072,14 +992,6 @@ export class PaymentsService {
 
           txRef,
 
-          /*
-           * For manual payments we use gatewayReference
-           * to store the hotel's external reference.
-           *
-           * Example:
-           * BANK-TRX-001
-           * CASH-001
-           */
           gatewayReference:
             dto.reference,
 
@@ -1089,18 +1001,25 @@ export class PaymentsService {
       });
 
     // ------------------------------------------------
-    // 8. Calculate new balance
+    // AUTOMATIC PAYMENT NOTIFICATION
     // ------------------------------------------------
+
+    await this.notificationsService.createNotification({
+      userId:
+        booking.customerId,
+
+      type:
+        NotificationType.PAYMENT_RECEIVED,
+
+      message:
+        `Payment of ${Number(dto.amount).toFixed(2)} ETB has been received successfully.`,
+    });
 
     const newBalance =
       Math.max(
         balance - dto.amount,
         0,
       );
-
-    // ------------------------------------------------
-    // 9. Return result
-    // ------------------------------------------------
 
     return {
       success: true,
