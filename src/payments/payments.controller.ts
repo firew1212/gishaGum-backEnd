@@ -29,19 +29,13 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
   ) {}
 
-  // ==================================================
-  // CUSTOMER — INITIALIZE ONLINE PAYMENT
-  // ==================================================
-
   @UseGuards(JwtAuthGuard)
   @Post('initialize')
   initializePayment(
     @Req() request: Request,
     @Body() dto: InitializePaymentDto,
   ) {
-    const user = request.user as {
-      id: string;
-    };
+    const user = request.user as { id: string };
 
     return this.paymentsService.initializePayment(
       user.id,
@@ -49,27 +43,13 @@ export class PaymentsController {
     );
   }
 
-  // ==================================================
-  // CUSTOMER — MY PAYMENTS
-  // ==================================================
-
   @UseGuards(JwtAuthGuard)
   @Get('my')
-  findMyPayments(
-    @Req() request: Request,
-  ) {
-    const user = request.user as {
-      id: string;
-    };
+  findMyPayments(@Req() request: Request) {
+    const user = request.user as { id: string };
 
-    return this.paymentsService.findMyPayments(
-      user.id,
-    );
+    return this.paymentsService.findMyPayments(user.id);
   }
-
-  // ==================================================
-  // CUSTOMER — VERIFY CHAPA PAYMENT
-  // ==================================================
 
   @UseGuards(JwtAuthGuard)
   @Get('verify/:txRef')
@@ -77,9 +57,7 @@ export class PaymentsController {
     @Req() request: Request,
     @Param('txRef') txRef: string,
   ) {
-    const user = request.user as {
-      id: string;
-    };
+    const user = request.user as { id: string };
 
     return this.paymentsService.verifyPayment(
       user.id,
@@ -87,61 +65,33 @@ export class PaymentsController {
     );
   }
 
-  // ==================================================
-  // CHAPA — CALLBACK
-  // ==================================================
-
-  @Post('chapa/callback')
-  chapaCallback(
-    @Body() body: unknown,
-  ) {
-    return this.paymentsService.handleChapaCallback(
-      body,
-    );
-  }
-
-  // ==================================================
-  // ADMIN — ALL PAYMENTS
-  // ==================================================
+  @Get('chapa/callback')
+chapaCallback(
+  @Body() body: unknown,
+) {
+  return this.paymentsService.handleChapaCallback(
+    body,
+  );
+}
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get()
-  findAllPayments(
-    @Query() filters: PaymentFilterDto,
-  ) {
-    return this.paymentsService.findAllPayments(
-      filters,
-    );
+  findAllPayments(@Query() filters: PaymentFilterDto) {
+    return this.paymentsService.findAllPayments(filters);
   }
-
-  // ==================================================
-  // ADMIN — PAYMENT DETAILS
-  // ==================================================
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get(':id')
-  findPaymentById(
-    @Param('id') paymentId: string,
-  ) {
-    return this.paymentsService.findPaymentById(
-      paymentId,
-    );
+  findPaymentById(@Param('id') paymentId: string) {
+    return this.paymentsService.findPaymentById(paymentId);
   }
-
-  // ==================================================
-  // ADMIN — MANUAL PAYMENT
-  // ==================================================
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Post('manual')
-  createManualPayment(
-    @Body() dto: ManualPaymentDto,
-  ) {
-    return this.paymentsService.createManualPayment(
-      dto,
-    );
+  createManualPayment(@Body() dto: ManualPaymentDto) {
+    return this.paymentsService.createManualPayment(dto);
   }
 }

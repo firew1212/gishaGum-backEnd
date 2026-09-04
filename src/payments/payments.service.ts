@@ -1,21 +1,27 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
+import { ConfigService } from '@nestjs/config';
 
 import { randomUUID } from 'node:crypto';
 
 import {
   BookingStatus,
+  NotificationType,
   PaymentMethod,
   PaymentStatus,
   PaymentType,
-  NotificationType,
 } from '../../generated/prisma/client.js';
 
 import { PrismaService } from '../prisma/prisma.service.js';
+
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 import { ChapaService } from './chapa/chapa.service.js';
 
@@ -23,14 +29,13 @@ import { InitializePaymentDto } from './dto/initialize-payment.dto.js';
 import { ManualPaymentDto } from './dto/manual-payment.dto.js';
 import { PaymentFilterDto } from './dto/payment-filter.dto.js';
 
-import { NotificationsService } from '../notifications/notifications.service.js';
-
 @Injectable()
 export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly chapaService: ChapaService,
     private readonly notificationsService: NotificationsService,
+    private readonly configService: ConfigService,
   ) {}
 
   // ==================================================
@@ -41,12 +46,13 @@ export class PaymentsService {
     customerId: string,
     dto: InitializePaymentDto,
   ) {
+    // CASH and BANK_TRANSFER are manual payments.
     if (
       dto.paymentMethod === PaymentMethod.CASH ||
       dto.paymentMethod === PaymentMethod.BANK_TRANSFER
     ) {
       throw new BadRequestException(
-        'Cash and bank transfer payments must be recorded manually',
+        'Cash and bank transfer payments must be recorded manually.',
       );
     }
 
@@ -77,23 +83,25 @@ export class PaymentsService {
 
     if (!booking) {
       throw new NotFoundException(
-        'Booking not found',
+        'Booking not found.',
       );
     }
 
     if (
-      booking.status === BookingStatus.CANCELLED
+      booking.status ===
+      BookingStatus.CANCELLED
     ) {
       throw new ConflictException(
-        'Cancelled booking cannot receive payment',
+        'Cancelled booking cannot receive payment.',
       );
     }
 
     if (
-      booking.status === BookingStatus.CHECKED_OUT
+      booking.status ===
+      BookingStatus.CHECKED_OUT
     ) {
       throw new ConflictException(
-        'Checked-out booking cannot receive payment',
+        'Checked-out booking cannot receive payment.',
       );
     }
 
@@ -106,7 +114,7 @@ export class PaymentsService {
 
     if (amount <= 0) {
       throw new BadRequestException(
-        'No payment is required for this booking',
+        'No payment is required for this booking.',
       );
     }
 
@@ -126,6 +134,23 @@ export class PaymentsService {
       });
 
     try {
+      const callbackUrl =
+        this.configService.getOrThrow<string>(
+          'CHAPA_CALLBACK_URL',
+        );
+
+      const returnUrl =
+        new URL(
+          this.configService.getOrThrow<string>(
+            'CHAPA_RETURN_URL',
+          ),
+        );
+
+      returnUrl.searchParams.set(
+        'tx_ref',
+        txRef,
+      );
+
       const chapaResponse =
         await this.chapaService.initializeTransaction({
           amount: amount.toFixed(2),
@@ -152,14 +177,10 @@ export class PaymentsService {
           tx_ref: txRef,
 
           callback_url:
-            this.getRequiredConfig(
-              'CHAPA_CALLBACK_URL',
-            ),
+            callbackUrl,
 
           return_url:
-            this.getRequiredConfig(
-              'CHAPA_RETURN_URL',
-            ),
+            returnUrl.toString(),
         });
 
       const checkoutUrl =
@@ -172,12 +193,13 @@ export class PaymentsService {
           },
 
           data: {
-            status: PaymentStatus.FAILED,
+            status:
+              PaymentStatus.FAILED,
           },
         });
 
-        throw new BadRequestException(
-          'Chapa did not return a checkout URL',
+        throw new BadGatewayException(
+          'Chapa did not return a checkout URL.',
         );
       }
 
@@ -200,7 +222,7 @@ export class PaymentsService {
         success: true,
 
         message:
-          'Payment initialized successfully',
+          'Payment initialized successfully.',
 
         paymentId:
           payment.id,
@@ -218,7 +240,8 @@ export class PaymentsService {
         },
 
         data: {
-          status: PaymentStatus.FAILED,
+          status:
+            PaymentStatus.FAILED,
         },
       });
 
@@ -230,10 +253,450 @@ export class PaymentsService {
   // CUSTOMER — VERIFY CHAPA PAYMENT
   // ==================================================
 
-  async verifyPayment(
-    customerId: string,
-    txRef: string,
+  // ==================================================
+// CUSTOMER — VERIFY CHAPA PAYMENT
+// ==================================================
+
+async verifyPayment(
+  customerId: string,
+  txRef: string,
+) {
+  const payment =
+    await this.prisma.payment.findUnique({
+      where: {
+        txRef,
+      },
+
+      include: {
+        booking: {
+          select: {
+            id: true,
+            customerId: true,
+            bookingReference: true,
+            status: true,
+            totalAmount: true,
+          },
+        },
+      },
+    });
+
+  if (!payment) {
+    throw new NotFoundException(
+      'Payment not found.',
+    );
+  }
+
+  if (
+    payment.booking.customerId !==
+    customerId
   ) {
+    throw new NotFoundException(
+      'Payment not found.',
+    );
+  }
+
+  // ------------------------------------------------
+  // IDEMPOTENCY
+  // ------------------------------------------------
+
+  if (
+    payment.status ===
+    PaymentStatus.PAID
+  ) {
+    return {
+      success: true,
+
+      message:
+        'Payment already processed.',
+
+      payment: {
+        id: payment.id,
+
+        txRef: payment.txRef,
+
+        gatewayReference:
+          payment.gatewayReference,
+
+        amount: payment.amount,
+
+        status: payment.status,
+
+        paidAt: payment.paidAt,
+      },
+
+      booking: {
+        id: payment.booking.id,
+
+        bookingReference:
+          payment.booking.bookingReference,
+
+        status:
+          payment.booking.status,
+
+        totalAmount:
+          payment.booking.totalAmount,
+      },
+    };
+  }
+
+  if (
+    payment.booking.status ===
+    BookingStatus.CANCELLED
+  ) {
+    throw new ConflictException(
+      'Cannot verify payment for a cancelled booking.',
+    );
+  }
+
+  if (
+    payment.booking.status ===
+    BookingStatus.CHECKED_OUT
+  ) {
+    throw new ConflictException(
+      'Cannot verify payment for a checked-out booking.',
+    );
+  }
+
+  // ------------------------------------------------
+  // VERIFY DIRECTLY WITH CHAPA
+  // ------------------------------------------------
+
+  const chapaResponse =
+    await this.chapaService.verifyTransaction(
+      txRef,
+    );
+
+  const chapaPayment =
+    this.extractChapaVerification(
+      chapaResponse,
+    );
+
+  // ------------------------------------------------
+  // SECURITY VALIDATION
+  // ------------------------------------------------
+
+  this.validateChapaPayment(
+    payment.txRef,
+    payment.amount,
+    chapaPayment,
+  );
+
+  const chapaStatus =
+    this.getChapaStatus(
+      chapaPayment,
+    );
+
+  const gatewayReference =
+    chapaPayment.reference;
+
+  // ------------------------------------------------
+  // SUCCESSFUL PAYMENT
+  // ------------------------------------------------
+
+  if (
+    this.isSuccessfulChapaStatus(
+      chapaStatus,
+    )
+  ) {
+    const result =
+      await this.prisma.$transaction(
+        async (transaction) => {
+          const currentPayment =
+            await transaction.payment.findUnique({
+              where: {
+                id: payment.id,
+              },
+            });
+
+          if (!currentPayment) {
+            throw new NotFoundException(
+              'Payment not found.',
+            );
+          }
+
+          // Protect against duplicate
+          // verification requests.
+          if (
+            currentPayment.status ===
+            PaymentStatus.PAID
+          ) {
+            const currentBooking =
+              await transaction.booking.findUnique({
+                where: {
+                  id: payment.booking.id,
+                },
+
+                select: {
+                  id: true,
+                  bookingReference: true,
+                  status: true,
+                  totalAmount: true,
+                },
+              });
+
+            return {
+              updatedPayment: currentPayment,
+
+              updatedBooking: currentBooking,
+
+              alreadyProcessed: true,
+            };
+          }
+
+          const updatedPayment =
+            await transaction.payment.update({
+              where: {
+                id: payment.id,
+              },
+
+              data: {
+                status:
+                  PaymentStatus.PAID,
+
+                paidAt:
+                  currentPayment.paidAt ??
+                  new Date(),
+
+                gatewayReference:
+                  gatewayReference ??
+                  currentPayment.gatewayReference,
+              },
+            });
+
+          const updatedBooking =
+            await transaction.booking.update({
+              where: {
+                id: payment.booking.id,
+              },
+
+              data: {
+                status:
+                  BookingStatus.CONFIRMED,
+              },
+
+              select: {
+                id: true,
+                bookingReference: true,
+                status: true,
+                totalAmount: true,
+              },
+            });
+
+          return {
+            updatedPayment,
+
+            updatedBooking,
+
+            alreadyProcessed: false,
+          };
+        },
+      );
+
+    // Do not create duplicate notification.
+    if (
+      !result.alreadyProcessed
+    ) {
+      await this.notificationsService.createNotification({
+        userId:
+          payment.booking.customerId,
+
+        type:
+          NotificationType.PAYMENT_RECEIVED,
+
+        message:
+          `Payment of ${Number(payment.amount).toFixed(2)} ETB has been received successfully.`,
+      });
+    }
+
+    return {
+      success: true,
+
+      message:
+        result.alreadyProcessed
+          ? 'Payment already processed.'
+          : 'Payment verified successfully.',
+
+      payment: {
+        id:
+          result.updatedPayment.id,
+
+        txRef:
+          result.updatedPayment.txRef,
+
+        gatewayReference:
+          result.updatedPayment.gatewayReference,
+
+        amount:
+          result.updatedPayment.amount,
+
+        status:
+          result.updatedPayment.status,
+
+        paidAt:
+          result.updatedPayment.paidAt,
+      },
+
+      booking: {
+        id:
+          result.updatedBooking!.id,
+
+        bookingReference:
+          result.updatedBooking!.bookingReference,
+
+        status:
+          result.updatedBooking!.status,
+
+        totalAmount:
+          result.updatedBooking!.totalAmount,
+      },
+
+      chapaStatus,
+    };
+  }
+
+  // ------------------------------------------------
+  // FAILED / CANCELLED PAYMENT
+  // ------------------------------------------------
+
+  if (
+    this.isFailedChapaStatus(
+      chapaStatus,
+    )
+  ) {
+    const updatedPayment =
+      await this.prisma.payment.update({
+        where: {
+          id: payment.id,
+        },
+
+        data: {
+          status:
+            PaymentStatus.FAILED,
+
+          gatewayReference:
+            gatewayReference ??
+            payment.gatewayReference,
+        },
+      });
+
+    return {
+      success: false,
+
+      message:
+        'Payment failed or was cancelled.',
+
+      payment: {
+        id:
+          updatedPayment.id,
+
+        txRef:
+          updatedPayment.txRef,
+
+        gatewayReference:
+          updatedPayment.gatewayReference,
+
+        amount:
+          updatedPayment.amount,
+
+        status:
+          updatedPayment.status,
+
+        paidAt:
+          updatedPayment.paidAt,
+      },
+
+      booking: {
+        id: payment.booking.id,
+
+        bookingReference:
+          payment.booking.bookingReference,
+
+        status:
+          payment.booking.status,
+
+        totalAmount:
+          payment.booking.totalAmount,
+      },
+
+      chapaStatus,
+    };
+  }
+
+  // ------------------------------------------------
+  // STILL PENDING
+  // ------------------------------------------------
+
+  return {
+    success: false,
+
+    message:
+      'Payment is still pending.',
+
+    payment: {
+      id: payment.id,
+
+      txRef: payment.txRef,
+
+      gatewayReference:
+        payment.gatewayReference,
+
+      amount: payment.amount,
+
+      status: payment.status,
+
+      paidAt: payment.paidAt,
+    },
+
+    booking: {
+      id: payment.booking.id,
+
+      bookingReference:
+        payment.booking.bookingReference,
+
+      status:
+        payment.booking.status,
+
+      totalAmount:
+        payment.booking.totalAmount,
+    },
+
+    chapaStatus:
+      chapaStatus || 'unknown',
+  };
+}
+
+  // ==================================================
+  // CHAPA — CALLBACK
+  // ==================================================
+
+  async handleChapaCallback(
+    body: unknown,
+  ) {
+    if (
+      !body ||
+      typeof body !== 'object'
+    ) {
+      throw new BadRequestException(
+        'Invalid Chapa callback payload.',
+      );
+    }
+
+    const payload =
+      body as Record<string, unknown>;
+
+    const txRef =
+      typeof payload.trx_ref === 'string'
+        ? payload.trx_ref.trim()
+        : typeof payload.tx_ref === 'string'
+          ? payload.tx_ref.trim()
+          : undefined;
+
+    if (!txRef) {
+      throw new BadRequestException(
+        'Chapa callback does not contain transaction reference.',
+      );
+    }
+
     const payment =
       await this.prisma.payment.findUnique({
         where: {
@@ -245,7 +708,8 @@ export class PaymentsService {
             select: {
               id: true,
               customerId: true,
-              totalAmount: true,
+              bookingReference: true,
+              status: true,
             },
           },
         },
@@ -253,21 +717,12 @@ export class PaymentsService {
 
     if (!payment) {
       throw new NotFoundException(
-        'Payment not found',
-      );
-    }
-
-    if (
-      payment.booking.customerId !==
-      customerId
-    ) {
-      throw new NotFoundException(
-        'Payment not found',
+        'Payment associated with callback not found.',
       );
     }
 
     // ------------------------------------------------
-    // Already paid — idempotency
+    // IDEMPOTENCY
     // ------------------------------------------------
 
     if (
@@ -278,304 +733,150 @@ export class PaymentsService {
         success: true,
 
         message:
-          'Payment already processed',
-
-        paymentId:
-          payment.id,
-
-        txRef:
-          payment.txRef,
-
-        status:
-          payment.status,
+          'Payment already processed.',
       };
     }
+
+    // ------------------------------------------------
+    // NEVER TRUST CALLBACK STATUS
+    // ------------------------------------------------
 
     const chapaResponse =
       await this.chapaService.verifyTransaction(
         txRef,
       );
 
+    const chapaPayment =
+      this.extractChapaVerification(
+        chapaResponse,
+      );
+
+    // ------------------------------------------------
+    // SECURITY VALIDATION
+    // ------------------------------------------------
+
+    this.validateChapaPayment(
+      payment.txRef,
+      payment.amount,
+      chapaPayment,
+    );
+
     const chapaStatus =
-      String(
-        chapaResponse.data?.status ??
-          chapaResponse.status ??
-          '',
-      ).toLowerCase();
-
-    const gatewayReference =
-      chapaResponse.data?.reference;
+      this.getChapaStatus(
+        chapaPayment,
+      );
 
     // ------------------------------------------------
-    // Successful payment
+    // SUCCESSFUL PAYMENT
     // ------------------------------------------------
 
     if (
-      chapaStatus === 'success' ||
-      chapaStatus === 'successful' ||
-      chapaStatus === 'paid' ||
-      chapaStatus === 'completed'
+      this.isSuccessfulChapaStatus(
+        chapaStatus,
+      )
     ) {
-      const updatedPayment =
-        await this.prisma.payment.update({
-          where: {
-            id: payment.id,
+      const result =
+        await this.prisma.$transaction(
+          async (transaction) => {
+            const currentPayment =
+              await transaction.payment.findUnique({
+                where: {
+                  id: payment.id,
+                },
+              });
+
+            if (!currentPayment) {
+              throw new NotFoundException(
+                'Payment not found.',
+              );
+            }
+
+            if (
+              currentPayment.status ===
+              PaymentStatus.PAID
+            ) {
+              return {
+                alreadyProcessed:
+                  true,
+              };
+            }
+
+            await transaction.payment.update({
+              where: {
+                id: payment.id,
+              },
+
+              data: {
+                status:
+                  PaymentStatus.PAID,
+
+                paidAt:
+                  currentPayment.paidAt ??
+                  new Date(),
+
+                gatewayReference:
+                  chapaPayment.reference ??
+                  currentPayment.gatewayReference,
+              },
+            });
+
+            await transaction.booking.update({
+              where: {
+                id:
+                  payment.booking.id,
+              },
+
+              data: {
+                status:
+                  BookingStatus.CONFIRMED,
+              },
+            });
+
+            return {
+              alreadyProcessed:
+                false,
+            };
           },
+        );
 
-          data: {
-            status: PaymentStatus.PAID,
+      if (!result.alreadyProcessed) {
+        await this.notificationsService.createNotification({
+          userId:
+            payment.booking.customerId,
 
-            paidAt:
-              payment.paidAt ??
-              new Date(),
+          type:
+            NotificationType.PAYMENT_RECEIVED,
 
-            gatewayReference:
-              gatewayReference ??
-              payment.gatewayReference,
-          },
+          message:
+            `Payment of ${Number(payment.amount).toFixed(2)} ETB has been received successfully.`,
         });
-
-      // ------------------------------------------------
-      // AUTOMATIC PAYMENT NOTIFICATION
-      // ------------------------------------------------
-
-      await this.notificationsService.createNotification({
-        userId:
-          payment.booking.customerId,
-
-        type:
-          NotificationType.PAYMENT_RECEIVED,
-
-        message:
-          `Payment of ${Number(payment.amount).toFixed(2)} ETB has been received successfully.`,
-      });
+      }
 
       return {
         success: true,
 
         message:
-          'Payment verified successfully',
+          result.alreadyProcessed
+            ? 'Payment already processed.'
+            : 'Payment verified and booking confirmed.',
 
-        paymentId:
-          updatedPayment.id,
-
-        txRef:
-          updatedPayment.txRef,
+        txRef,
 
         status:
-          updatedPayment.status,
-
-        chapaStatus,
-
-        paidAt:
-          updatedPayment.paidAt,
-      };
-    }
-
-    // ------------------------------------------------
-    // Failed / cancelled payment
-    // ------------------------------------------------
-
-    if (
-      chapaStatus === 'failed' ||
-      chapaStatus === 'cancelled' ||
-      chapaStatus === 'canceled'
-    ) {
-      const updatedPayment =
-        await this.prisma.payment.update({
-          where: {
-            id: payment.id,
-          },
-
-          data: {
-            status:
-              PaymentStatus.FAILED,
-
-            gatewayReference:
-              gatewayReference ??
-              payment.gatewayReference,
-          },
-        });
-
-      return {
-        success: false,
-
-        message:
-          'Payment failed or was cancelled',
-
-        paymentId:
-          updatedPayment.id,
-
-        txRef:
-          updatedPayment.txRef,
-
-        status:
-          updatedPayment.status,
+          PaymentStatus.PAID,
 
         chapaStatus,
       };
     }
 
     // ------------------------------------------------
-    // Still pending
-    // ------------------------------------------------
-
-    return {
-      success: true,
-
-      message:
-        'Payment is still pending',
-
-      paymentId:
-        payment.id,
-
-      txRef:
-        payment.txRef,
-
-      status:
-        payment.status,
-
-      chapaStatus,
-    };
-  }
-
-  // ==================================================
-  // CHAPA — CALLBACK / WEBHOOK
-  // ==================================================
-
-  async handleChapaCallback(
-    body: unknown,
-  ) {
-    if (
-      !body ||
-      typeof body !== 'object'
-    ) {
-      throw new BadRequestException(
-        'Invalid Chapa callback payload',
-      );
-    }
-
-    const payload =
-      body as Record<string, unknown>;
-
-    const txRef =
-      typeof payload.tx_ref === 'string'
-        ? payload.tx_ref
-        : undefined;
-
-    const status =
-      typeof payload.status === 'string'
-        ? payload.status.toLowerCase()
-        : undefined;
-
-    const reference =
-      typeof payload.reference === 'string'
-        ? payload.reference
-        : undefined;
-
-    if (!txRef) {
-      throw new BadRequestException(
-        'Chapa callback does not contain tx_ref',
-      );
-    }
-
-    const payment =
-      await this.prisma.payment.findUnique({
-        where: {
-          txRef,
-        },
-
-        include: {
-          booking: {
-            select: {
-              customerId: true,
-            },
-          },
-        },
-      });
-
-    if (!payment) {
-      throw new NotFoundException(
-        'Payment associated with callback not found',
-      );
-    }
-
-    // ------------------------------------------------
-    // Idempotency
+    // FAILED / CANCELLED PAYMENT
     // ------------------------------------------------
 
     if (
-      payment.status ===
-      PaymentStatus.PAID
-    ) {
-      return {
-        success: true,
-
-        message:
-          'Payment already processed',
-      };
-    }
-
-    // ------------------------------------------------
-    // Successful callback
-    // ------------------------------------------------
-
-    if (
-      status === 'success' ||
-      status === 'successful' ||
-      status === 'paid' ||
-      status === 'completed'
-    ) {
-      await this.prisma.payment.update({
-        where: {
-          id: payment.id,
-        },
-
-        data: {
-          status:
-            PaymentStatus.PAID,
-
-          paidAt:
-            payment.paidAt ??
-            new Date(),
-
-          gatewayReference:
-            reference ??
-            payment.gatewayReference,
-        },
-      });
-
-      // ------------------------------------------------
-      // AUTOMATIC PAYMENT NOTIFICATION
-      // ------------------------------------------------
-
-      await this.notificationsService.createNotification({
-        userId:
-          payment.booking.customerId,
-
-        type:
-          NotificationType.PAYMENT_RECEIVED,
-
-        message:
-          `Payment of ${Number(payment.amount).toFixed(2)} ETB has been received successfully.`,
-      });
-
-      return {
-        success: true,
-
-        message:
-          'Payment marked as paid',
-      };
-    }
-
-    // ------------------------------------------------
-    // Failed / cancelled callback
-    // ------------------------------------------------
-
-    if (
-      status === 'failed' ||
-      status === 'cancelled' ||
-      status === 'canceled'
+      this.isFailedChapaStatus(
+        chapaStatus,
+      )
     ) {
       await this.prisma.payment.update({
         where: {
@@ -587,7 +888,7 @@ export class PaymentsService {
             PaymentStatus.FAILED,
 
           gatewayReference:
-            reference ??
+            chapaPayment.reference ??
             payment.gatewayReference,
         },
       });
@@ -596,25 +897,34 @@ export class PaymentsService {
         success: true,
 
         message:
-          'Payment marked as failed',
+          'Payment marked as failed.',
+
+        txRef,
+
+        status:
+          PaymentStatus.FAILED,
+
+        chapaStatus,
       };
     }
 
     // ------------------------------------------------
-    // Pending / unknown status
+    // PENDING / UNKNOWN
     // ------------------------------------------------
 
     return {
       success: true,
 
       message:
-        'Payment status received but not finalized',
+        'Payment status received but not finalized.',
+
+      txRef,
 
       status:
         payment.status,
 
       chapaStatus:
-        status ?? 'unknown',
+        chapaStatus || 'unknown',
     };
   }
 
@@ -826,7 +1136,7 @@ export class PaymentsService {
 
     if (!payment) {
       throw new NotFoundException(
-        'Payment not found',
+        'Payment not found.',
       );
     }
 
@@ -887,7 +1197,7 @@ export class PaymentsService {
         PaymentMethod.BANK_TRANSFER
     ) {
       throw new BadRequestException(
-        'Manual payment only supports CASH or BANK_TRANSFER',
+        'Manual payment only supports CASH or BANK_TRANSFER.',
       );
     }
 
@@ -909,7 +1219,7 @@ export class PaymentsService {
 
     if (!booking) {
       throw new NotFoundException(
-        'Booking not found',
+        'Booking not found.',
       );
     }
 
@@ -918,7 +1228,7 @@ export class PaymentsService {
       BookingStatus.CANCELLED
     ) {
       throw new ConflictException(
-        'Cancelled booking cannot receive payment',
+        'Cancelled booking cannot receive payment.',
       );
     }
 
@@ -927,7 +1237,7 @@ export class PaymentsService {
       BookingStatus.CHECKED_OUT
     ) {
       throw new ConflictException(
-        'Checked-out booking cannot receive payment',
+        'Checked-out booking cannot receive payment.',
       );
     }
 
@@ -957,13 +1267,13 @@ export class PaymentsService {
 
     if (dto.amount <= 0) {
       throw new BadRequestException(
-        'Payment amount must be greater than zero',
+        'Payment amount must be greater than zero.',
       );
     }
 
     if (dto.amount > balance) {
       throw new BadRequestException(
-        `Payment amount cannot exceed remaining balance of ${balance.toFixed(2)} ETB`,
+        `Payment amount cannot exceed remaining balance of ${balance.toFixed(2)} ETB.`,
       );
     }
 
@@ -971,38 +1281,58 @@ export class PaymentsService {
       this.generateManualReference();
 
     const payment =
-      await this.prisma.payment.create({
-        data: {
-          bookingId:
-            booking.id,
+      await this.prisma.$transaction(
+        async (transaction) => {
+          const createdPayment =
+            await transaction.payment.create({
+              data: {
+                bookingId:
+                  booking.id,
 
-          amount:
-            Number(
-              dto.amount.toFixed(2),
-            ),
+                amount:
+                  Number(
+                    dto.amount.toFixed(2),
+                  ),
 
-          paymentType:
-            dto.paymentType,
+                paymentType:
+                  dto.paymentType,
 
-          paymentMethod:
-            dto.paymentMethod,
+                paymentMethod:
+                  dto.paymentMethod,
 
-          status:
-            PaymentStatus.PAID,
+                status:
+                  PaymentStatus.PAID,
 
-          txRef,
+                txRef,
 
-          gatewayReference:
-            dto.reference,
+                gatewayReference:
+                  dto.reference,
 
-          paidAt:
-            new Date(),
+                paidAt:
+                  new Date(),
+              },
+            });
+
+          // Successful payment confirms
+          // the booking.
+          //
+          // Room occupancy is handled
+          // by the check-in process.
+          await transaction.booking.update({
+            where: {
+              id:
+                booking.id,
+            },
+
+            data: {
+              status:
+                BookingStatus.CONFIRMED,
+            },
+          });
+
+          return createdPayment;
         },
-      });
-
-    // ------------------------------------------------
-    // AUTOMATIC PAYMENT NOTIFICATION
-    // ------------------------------------------------
+      );
 
     await this.notificationsService.createNotification({
       userId:
@@ -1025,7 +1355,7 @@ export class PaymentsService {
       success: true,
 
       message:
-        'Manual payment recorded successfully',
+        'Manual payment recorded successfully.',
 
       payment: {
         id:
@@ -1094,6 +1424,15 @@ export class PaymentsService {
     const total =
       Number(totalAmount);
 
+    if (
+      !Number.isFinite(total) ||
+      total <= 0
+    ) {
+      throw new BadRequestException(
+        'Invalid booking total amount.',
+      );
+    }
+
     const alreadyPaid =
       payments
         .filter(
@@ -1130,9 +1469,183 @@ export class PaymentsService {
 
       default:
         throw new BadRequestException(
-          'Unsupported payment type',
+          'Unsupported payment type.',
         );
     }
+  }
+
+  // ==================================================
+  // CHAPA VERIFICATION
+  // ==================================================
+
+  private extractChapaVerification(
+    response: unknown,
+  ): ChapaVerification {
+    if (
+      !response ||
+      typeof response !== 'object'
+    ) {
+      throw new BadGatewayException(
+        'Invalid response received from Chapa.',
+      );
+    }
+
+    const root =
+      response as Record<string, unknown>;
+
+    const data =
+      root.data &&
+      typeof root.data === 'object'
+        ? root.data as Record<string, unknown>
+        : root;
+
+    return {
+      status:
+        typeof data.status === 'string'
+          ? data.status
+          : undefined,
+
+      tx_ref:
+        typeof data.tx_ref === 'string'
+          ? data.tx_ref
+          : typeof data.trx_ref === 'string'
+            ? data.trx_ref
+            : undefined,
+
+      reference:
+        typeof data.reference === 'string'
+          ? data.reference
+          : undefined,
+
+      amount:
+        typeof data.amount === 'number' ||
+        typeof data.amount === 'string'
+          ? data.amount
+          : undefined,
+
+      currency:
+        typeof data.currency === 'string'
+          ? data.currency
+          : undefined,
+    };
+  }
+
+  // ==================================================
+  // PAYMENT SECURITY VALIDATION
+  // ==================================================
+
+  private validateChapaPayment(
+    expectedTxRef: string,
+    expectedAmount: unknown,
+    chapaPayment: ChapaVerification,
+  ) {
+    // ------------------------------------------------
+    // TRANSACTION REFERENCE
+    // ------------------------------------------------
+
+    const chapaTxRef =
+      chapaPayment.tx_ref?.trim();
+
+    if (
+      !chapaTxRef ||
+      chapaTxRef !== expectedTxRef
+    ) {
+      throw new BadGatewayException(
+        'Payment verification failed: transaction reference mismatch.',
+      );
+    }
+
+    // ------------------------------------------------
+    // CURRENCY
+    // ------------------------------------------------
+
+    const chapaCurrency =
+      chapaPayment.currency
+        ?.trim()
+        .toUpperCase();
+
+    if (chapaCurrency !== 'ETB') {
+      throw new BadGatewayException(
+        'Payment verification failed: currency mismatch.',
+      );
+    }
+
+    // ------------------------------------------------
+    // AMOUNT
+    // ------------------------------------------------
+
+    const actualAmount =
+      Number(
+        chapaPayment.amount,
+      );
+
+    const expected =
+      Number(
+        expectedAmount,
+      );
+
+    if (
+      !Number.isFinite(actualAmount) ||
+      !Number.isFinite(expected)
+    ) {
+      throw new BadGatewayException(
+        'Payment verification failed: invalid payment amount.',
+      );
+    }
+
+    const normalizedActual =
+      Number(
+        actualAmount.toFixed(2),
+      );
+
+    const normalizedExpected =
+      Number(
+        expected.toFixed(2),
+      );
+
+    if (
+      normalizedActual !==
+      normalizedExpected
+    ) {
+      throw new BadGatewayException(
+        'Payment verification failed: payment amount mismatch.',
+      );
+    }
+  }
+
+  // ==================================================
+  // CHAPA STATUS HELPERS
+  // ==================================================
+
+  private getChapaStatus(
+    chapaPayment: ChapaVerification,
+  ): string {
+    return (
+      chapaPayment.status
+        ?.trim()
+        .toLowerCase() ?? ''
+    );
+  }
+
+  private isSuccessfulChapaStatus(
+    status: string,
+  ): boolean {
+    return [
+      'success',
+      'successful',
+      'paid',
+      'completed',
+    ].includes(status);
+  }
+
+  private isFailedChapaStatus(
+    status: string,
+  ): boolean {
+    return [
+      'failed',
+      'cancelled',
+      'canceled',
+    ].includes(status);
   }
 
   // ==================================================
@@ -1178,23 +1691,16 @@ export class PaymentsService {
       .slice(1)
       .join(' ');
   }
+}
 
-  // ==================================================
-  // REQUIRED ENVIRONMENT VARIABLE
-  // ==================================================
+// ==================================================
+// CHAPA VERIFICATION TYPE
+// ==================================================
 
-  private getRequiredConfig(
-    name: string,
-  ): string {
-    const value =
-      process.env[name];
-
-    if (!value) {
-      throw new Error(
-        `${name} must be defined in .env`,
-      );
-    }
-
-    return value;
-  }
+interface ChapaVerification {
+  status?: string;
+  tx_ref?: string;
+  reference?: string;
+  amount?: string | number;
+  currency?: string;
 }

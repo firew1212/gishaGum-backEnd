@@ -24,8 +24,8 @@ export class EnvironmentVariables {
   @IsUrl()
   CHAPA_CALLBACK_URL!: string;
 
-  @IsUrl()
-  CHAPA_RETURN_URL!: string;
+  // @IsUrl()
+  // CHAPA_RETURN_URL!: string;
 }
 
 export function validateEnvironment(

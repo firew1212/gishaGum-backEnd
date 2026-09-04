@@ -46,18 +46,7 @@ interface ChapaVerifyResponse {
   };
 }
 
-interface ChapaRefundResponse {
-  status: string;
-  message: string;
-  data?: {
-    ref_id?: string;
-    payment_reference?: string;
-    merchant_reference?: string | null;
-    status?: string;
-    amount?: number | string;
-    currency?: string;
-  };
-}
+
 
 @Injectable()
 export class ChapaService {
@@ -147,86 +136,9 @@ export class ChapaService {
     }
   }
 
-  // ==================================================
-  // INITIATE REFUND
-  // ==================================================
+  
 
-  async initiateRefund(
-    txRef: string,
-    payload: {
-      amount?: string;
-      reason?: string;
-      reference: string;
-    },
-  ): Promise<ChapaRefundResponse> {
-    try {
-      const form = new URLSearchParams();
-
-      if (payload.amount) {
-        form.append(
-          'amount',
-          payload.amount,
-        );
-      }
-
-      if (payload.reason) {
-        form.append(
-          'reason',
-          payload.reason,
-        );
-      }
-
-      form.append(
-        'reference',
-        payload.reference,
-      );
-
-      const response =
-        await this.http.post<ChapaRefundResponse>(
-          `/v1/refund/${encodeURIComponent(txRef)}`,
-          form.toString(),
-          {
-            headers: {
-              'Content-Type':
-                'application/x-www-form-urlencoded',
-            },
-          },
-        );
-
-      return response.data;
-    } catch (error) {
-      this.handleChapaError(
-        error,
-        'Chapa refund initialization failed',
-        'Unable to initialize Chapa refund',
-      );
-    }
-  }
-
-  // ==================================================
-  // VERIFY REFUND
-  // ==================================================
-
-  async verifyRefund(
-    refundReference: string,
-  ): Promise<ChapaRefundResponse> {
-    try {
-      const response =
-        await this.http.get<ChapaRefundResponse>(
-          `/v1/refund/${encodeURIComponent(
-            refundReference,
-          )}/verify`,
-        );
-
-      return response.data;
-    } catch (error) {
-      this.handleChapaError(
-        error,
-        'Chapa refund verification failed',
-        'Unable to verify Chapa refund',
-      );
-    }
-  }
+ 
 
   // ==================================================
   // COMMON ERROR HANDLER

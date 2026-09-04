@@ -410,26 +410,32 @@ export class BookingsService {
           // ------------------------------------------------------
 
           const updatedBooking =
-            await tx.booking.update({
-              where: {
-                id: booking.id,
-              },
+  await tx.booking.update({
+    where: {
+      id: booking.id,
+    },
 
-              data: {
-                status:
-                  BookingStatus.CANCELLED,
-              },
+    data: {
+      status:
+        BookingStatus.CANCELLED,
+    },
 
-              include: {
-                rooms: {
-                  include: {
-                    room: true,
-                  },
-                },
+    include: {
+      rooms: {
+        include: {
+          room: {
+            include: {
+              roomType: true,
+            },
+          },
+        },
+      },
 
-                guests: true,
-              },
-            });
+      guests: true,
+
+      payments: true,
+    },
+  });
 
           return updatedBooking;
         },
