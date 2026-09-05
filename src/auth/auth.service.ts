@@ -16,9 +16,9 @@ import { LoginDto } from './dto/login.dto.js';
 @Injectable()
 export class AuthService {
   constructor(
-  private readonly prisma: PrismaService,
-  private readonly jwtService: JwtService,
-) {}
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   async register(dto: RegisterDto) {
     const existingUser = await this.prisma.user.findFirst({
@@ -61,42 +61,42 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-  const user = await this.prisma.user.findUnique({
-    where: {
-      phone: dto.phone,
-    },
-  });
+    const user = await this.prisma.user.findUnique({
+      where: {
+        phone: dto.phone,
+      },
+    });
 
-  if (!user || !user.isActive) {
-    throw new UnauthorizedException('Invalid phone or password');
-  }
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Invalid phone or password');
+    }
 
-  const passwordMatches = await bcrypt.compare(
-    dto.password,
-    user.passwordHash,
-  );
+    const passwordMatches = await bcrypt.compare(
+      dto.password,
+      user.passwordHash,
+    );
 
-  if (!passwordMatches) {
-    throw new UnauthorizedException('Invalid phone or password');
-  }
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid phone or password');
+    }
 
-  const payload = {
-    sub: user.id,
-    phone: user.phone,
-    role: user.role,
-  };
-
-  const accessToken = await this.jwtService.signAsync(payload);
-
-  return {
-    accessToken,
-    user: {
-      id: user.id,
-      fullName: user.fullName,
+    const payload = {
+      sub: user.id,
       phone: user.phone,
-      email: user.email,
       role: user.role,
-    },
-  };
-}
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+      },
+    };
+  }
 }

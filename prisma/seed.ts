@@ -1,46 +1,195 @@
-import 'dotenv/config';
+import * as bcrypt from 'bcrypt';
+
+import {
+  PrismaClient,
+  UserRole,
+} from '../generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../generated/prisma/client.js';
-import bcrypt from 'bcrypt';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
 });
 
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({
+ adapter
+});
 
 async function main() {
-  const phone = process.env.ADMIN_PHONE;
-  const password = process.env.ADMIN_PASSWORD;
-  const nationalId = process.env.ADMIN_NATIONAL_ID;
+  // ==================================================
+  // READ ADMIN CONFIGURATION
+  // ==================================================
 
-  if (!phone || !password || !nationalId) {
+  const adminPassword =
+    process.env.ADMIN_PASSWORD;
+
+  const adminPhone =
+    process.env.ADMIN_PHONE;
+
+  if (!adminPassword || !adminPhone) {
     throw new Error(
-      'ADMIN_PHONE, ADMIN_PASSWORD and ADMIN_NATIONAL_ID must be defined in .env',
+      'ADMIN_PASSWORD and ADMIN_PHONE must be defined in .env',
     );
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  // ==================================================
+  // READ CASHIER CONFIGURATION
+  // ==================================================
 
-  const admin = await prisma.user.upsert({
-    where: { phone },
-    update: {
-      role: 'ADMIN',
-      isActive: true,
-      passwordHash,
-    },
-    create: {
-      fullName: 'System Administrator',
-      phone,
-      nationalId,
-      nationality: 'Ethiopian',
-      passwordHash,
-      role: 'ADMIN',
-      isActive: true,
-    },
-  });
+  const cashierPassword =
+    process.env.CASHIER_PASSWORD;
 
-  console.log(`Admin ready: ${admin.phone}`);
+  const cashierPhone =
+    process.env.CASHIER_PHONE;
+
+  if (!cashierPassword || !cashierPhone) {
+    throw new Error(
+      'CASHIER_PASSWORD and CASHIER_PHONE must be defined in .env',
+    );
+  }
+
+  // ==================================================
+  // HASH PASSWORDS
+  // ==================================================
+
+  const adminPasswordHash =
+    await bcrypt.hash(adminPassword, 12);
+
+  const cashierPasswordHash =
+    await bcrypt.hash(cashierPassword, 12);
+
+  // ==================================================
+  // CREATE / UPDATE ADMIN
+  // ==================================================
+
+  const admin =
+    await prisma.user.upsert({
+      where: {
+        phone: adminPhone,
+      },
+
+      update: {
+        fullName:
+          process.env.ADMIN_FULL_NAME ??
+          'Hotel Administrator',
+
+        email:
+          process.env.ADMIN_EMAIL ??
+          null,
+
+        nationalId:
+          process.env.ADMIN_NATIONAL_ID ??
+          'ADMIN-001',
+
+        nationality:
+          process.env.ADMIN_NATIONALITY ??
+          'Ethiopian',
+
+        passwordHash:
+          adminPasswordHash,
+
+        role: UserRole.ADMIN,
+
+        isActive: true,
+      },
+
+      create: {
+        fullName:
+          process.env.ADMIN_FULL_NAME ??
+          'Hotel Administrator',
+
+        phone: adminPhone,
+
+        email:
+          process.env.ADMIN_EMAIL ??
+          null,
+
+        nationalId:
+          process.env.ADMIN_NATIONAL_ID ??
+          'ADMIN-001',
+
+        nationality:
+          process.env.ADMIN_NATIONALITY ??
+          'Ethiopian',
+
+        passwordHash:
+          adminPasswordHash,
+
+        role: UserRole.ADMIN,
+
+        isActive: true,
+      },
+    });
+
+  // ==================================================
+  // CREATE / UPDATE CASHIER
+  // ==================================================
+
+  const cashier =
+    await prisma.user.upsert({
+      where: {
+        phone: cashierPhone,
+      },
+
+      update: {
+        fullName:
+          process.env.CASHIER_FULL_NAME ??
+          'Hotel Cashier',
+
+        email:
+          process.env.CASHIER_EMAIL ??
+          null,
+
+        nationalId:
+          process.env.CASHIER_NATIONAL_ID ??
+          'CASHIER-001',
+
+        nationality:
+          process.env.CASHIER_NATIONALITY ??
+          'Ethiopian',
+
+        passwordHash:
+          cashierPasswordHash,
+
+        role: UserRole.CASHIER,
+
+        isActive: true,
+      },
+
+      create: {
+        fullName:
+          process.env.CASHIER_FULL_NAME ??
+          'Hotel Cashier',
+
+        phone: cashierPhone,
+
+        email:
+          process.env.CASHIER_EMAIL ??
+          null,
+
+        nationalId:
+          process.env.CASHIER_NATIONAL_ID ??
+          'CASHIER-001',
+
+        nationality:
+          process.env.CASHIER_NATIONALITY ??
+          'Ethiopian',
+
+        passwordHash:
+          cashierPasswordHash,
+
+        role: UserRole.CASHIER,
+
+        isActive: true,
+      },
+    });
+
+  console.log(
+    `Admin ready: ${admin.phone}`,
+  );
+
+  console.log(
+    `Cashier ready: ${cashier.phone}`,
+  );
 }
 
 main()
