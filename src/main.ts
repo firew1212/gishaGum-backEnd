@@ -74,9 +74,9 @@ async function bootstrap() {
   // START SERVER
   // ==================================================
 
-  const port = configService.get<number>('PORT', 4000);
+  const port = Number(configService.get<string>('PORT', '4000'));
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 }
 
 void bootstrap();
