@@ -1,6 +1,4 @@
-import {
-  Injectable,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import {
   BookingStatus,
@@ -12,9 +10,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class ReportsService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // ==================================================
   // ADMIN / CASHIER — HOTEL DASHBOARD
@@ -129,15 +125,9 @@ export class ReportsService {
       }),
     ]);
 
-    const totalRevenue =
-      Number(
-        paidPayments._sum.amount ?? 0,
-      );
+    const totalRevenue = Number(paidPayments._sum.amount ?? 0);
 
-    const pendingAmount =
-      Number(
-        pendingPayments._sum.amount ?? 0,
-      );
+    const pendingAmount = Number(pendingPayments._sum.amount ?? 0);
 
     return {
       bookings: {
@@ -158,15 +148,9 @@ export class ReportsService {
       },
 
       payments: {
-        totalRevenue:
-          Number(
-            totalRevenue.toFixed(2),
-          ),
+        totalRevenue: Number(totalRevenue.toFixed(2)),
 
-        pendingAmount:
-          Number(
-            pendingAmount.toFixed(2),
-          ),
+        pendingAmount: Number(pendingAmount.toFixed(2)),
       },
     };
   }

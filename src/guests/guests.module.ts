@@ -6,20 +6,12 @@ import { GuestsController } from './guests.controller.js';
 import { GuestsService } from './guests.service.js';
 
 @Module({
-  imports: [
-    PrismaModule,
-  ],
+  imports: [PrismaModule],
 
-  controllers: [
-    GuestsController,
-  ],
+  controllers: [GuestsController],
 
-  providers: [
-    GuestsService,
-  ],
+  providers: [GuestsService],
 
-  exports: [
-    GuestsService,
-  ],
+  exports: [GuestsService],
 })
 export class GuestsModule {}

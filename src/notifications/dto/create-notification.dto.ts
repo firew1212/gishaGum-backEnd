@@ -1,9 +1,4 @@
-import {
-  IsEnum,
-  IsNotEmpty,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 import { NotificationType } from '../../../generated/prisma/client.js';
 

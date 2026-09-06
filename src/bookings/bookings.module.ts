@@ -7,21 +7,12 @@ import { BookingsController } from './bookings.controller.js';
 import { BookingsService } from './bookings.service.js';
 
 @Module({
-  imports: [
-    PrismaModule,
-    NotificationsModule,
-  ],
+  imports: [PrismaModule, NotificationsModule],
 
-  controllers: [
-    BookingsController,
-  ],
+  controllers: [BookingsController],
 
-  providers: [
-    BookingsService,
-  ],
+  providers: [BookingsService],
 
-  exports: [
-    BookingsService,
-  ],
+  exports: [BookingsService],
 })
 export class BookingsModule {}

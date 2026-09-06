@@ -28,18 +28,13 @@ export class BookingsService {
   // CUSTOMER — CREATE BOOKING
   // ============================================================
 
-  async createBooking(
-    customerId: string,
-    dto: CreateBookingDto,
-  ) {
+  async createBooking(customerId: string, dto: CreateBookingDto) {
     const checkIn = new Date(dto.checkIn);
     const checkOut = new Date(dto.checkOut);
 
     this.validateBookingDates(checkIn, checkOut);
 
-    const roomIds = dto.rooms.map(
-      (room) => room.roomId,
-    );
+    const roomIds = dto.rooms.map((room) => room.roomId);
 
     this.validateRoomIds(roomIds);
 
@@ -74,9 +69,7 @@ export class BookingsService {
         });
 
         if (rooms.length !== roomIds.length) {
-          throw new NotFoundException(
-            'One or more rooms were not found',
-          );
+          throw new NotFoundException('One or more rooms were not found');
         }
 
         // --------------------------------------------------------
@@ -99,34 +92,33 @@ export class BookingsService {
         // CHECK DOUBLE BOOKING
         // --------------------------------------------------------
 
-        const conflictingRooms =
-          await tx.bookingRoom.findMany({
-            where: {
-              roomId: {
-                in: roomIds,
-              },
-
-              isActive: true,
-
-              checkIn: {
-                lt: checkOut,
-              },
-
-              checkOut: {
-                gt: checkIn,
-              },
-
-              booking: {
-                status: {
-                  not: BookingStatus.CANCELLED,
-                },
-              },
+        const conflictingRooms = await tx.bookingRoom.findMany({
+          where: {
+            roomId: {
+              in: roomIds,
             },
 
-            select: {
-              roomId: true,
+            isActive: true,
+
+            checkIn: {
+              lt: checkOut,
             },
-          });
+
+            checkOut: {
+              gt: checkIn,
+            },
+
+            booking: {
+              status: {
+                not: BookingStatus.CANCELLED,
+              },
+            },
+          },
+
+          select: {
+            roomId: true,
+          },
+        });
 
         if (conflictingRooms.length > 0) {
           throw new ConflictException(
@@ -138,36 +130,25 @@ export class BookingsService {
         // CALCULATE NIGHTS
         // --------------------------------------------------------
 
-        const nights =
-          this.calculateNights(
-            checkIn,
-            checkOut,
-          );
+        const nights = this.calculateNights(checkIn, checkOut);
 
         // --------------------------------------------------------
         // CALCULATE TOTAL
         // --------------------------------------------------------
 
-        let totalAmount =
-          new Prisma.Decimal(0);
+        let totalAmount = new Prisma.Decimal(0);
 
         for (const room of rooms) {
-          totalAmount =
-            totalAmount.plus(
-              new Prisma.Decimal(
-                room.roomType.price,
-              ).mul(nights),
-            );
+          totalAmount = totalAmount.plus(
+            new Prisma.Decimal(room.roomType.price).mul(nights),
+          );
         }
 
         // --------------------------------------------------------
         // BOOKING REFERENCE
         // --------------------------------------------------------
 
-        const bookingReference =
-          await this.generateBookingReference(
-            tx,
-          );
+        const bookingReference = await this.generateBookingReference(tx);
 
         // --------------------------------------------------------
         // CREATE BOOKING
@@ -183,45 +164,33 @@ export class BookingsService {
 
             checkOut,
 
-            status:
-              BookingStatus.PENDING,
+            status: BookingStatus.PENDING,
 
             totalAmount,
 
             rooms: {
-              create: roomIds.map(
-                (roomId) => ({
-                  roomId,
-                  checkIn,
-                  checkOut,
-                  isActive: true,
-                }),
-              ),
+              create: roomIds.map((roomId) => ({
+                roomId,
+                checkIn,
+                checkOut,
+                isActive: true,
+              })),
             },
 
             guests: {
-              create: dto.guests.map(
-                (guest) => ({
-                  fullName:
-                    guest.fullName,
+              create: dto.guests.map((guest) => ({
+                fullName: guest.fullName,
 
-                  phone:
-                    guest.phone,
+                phone: guest.phone,
 
-                  nationalId:
-                    guest.nationalId,
+                nationalId: guest.nationalId,
 
-                  nationality:
-                    guest.nationality,
+                nationality: guest.nationality,
 
-                  email:
-                    guest.email,
+                email: guest.email,
 
-                  isPrimary:
-                    guest.isPrimary ??
-                    false,
-                }),
-              ),
+                isPrimary: guest.isPrimary ?? false,
+              })),
             },
           },
 
@@ -252,9 +221,7 @@ export class BookingsService {
   // CUSTOMER — MY BOOKINGS
   // ============================================================
 
-  async findMyBookings(
-    customerId: string,
-  ) {
+  async findMyBookings(customerId: string) {
     return this.prisma.booking.findMany({
       where: {
         customerId,
@@ -286,38 +253,32 @@ export class BookingsService {
   // CUSTOMER — ONE BOOKING
   // ============================================================
 
-  async findMyBooking(
-    customerId: string,
-    bookingId: string,
-  ) {
-    const booking =
-      await this.prisma.booking.findFirst({
-        where: {
-          id: bookingId,
-          customerId,
-        },
+  async findMyBooking(customerId: string, bookingId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        customerId,
+      },
 
-        include: {
-          rooms: {
-            include: {
-              room: {
-                include: {
-                  roomType: true,
-                },
+      include: {
+        rooms: {
+          include: {
+            room: {
+              include: {
+                roomType: true,
               },
             },
           },
-
-          guests: true,
-
-          payments: true,
         },
-      });
+
+        guests: true,
+
+        payments: true,
+      },
+    });
 
     if (!booking) {
-      throw new NotFoundException(
-        'Booking not found',
-      );
+      throw new NotFoundException('Booking not found');
     }
 
     return booking;
@@ -327,140 +288,115 @@ export class BookingsService {
   // CUSTOMER — CANCEL BOOKING
   // ============================================================
 
-  async cancelBooking(
-    customerId: string,
-    bookingId: string,
-  ) {
-    const result =
-      await this.prisma.$transaction(
-        async (tx) => {
-          const booking =
-            await tx.booking.findFirst({
-              where: {
-                id: bookingId,
-                customerId,
-              },
+  async cancelBooking(customerId: string, bookingId: string) {
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const booking = await tx.booking.findFirst({
+          where: {
+            id: bookingId,
+            customerId,
+          },
 
-              include: {
-                rooms: true,
-              },
-            });
+          include: {
+            rooms: true,
+          },
+        });
 
-          if (!booking) {
-            throw new NotFoundException(
-              'Booking not found',
-            );
-          }
+        if (!booking) {
+          throw new NotFoundException('Booking not found');
+        }
 
-          if (
-            booking.status ===
-            BookingStatus.CANCELLED
-          ) {
-            throw new ConflictException(
-              'Booking is already cancelled',
-            );
-          }
+        if (booking.status === BookingStatus.CANCELLED) {
+          throw new ConflictException('Booking is already cancelled');
+        }
 
-          if (
-            booking.status ===
-              BookingStatus.CHECKED_IN ||
-            booking.status ===
-              BookingStatus.CHECKED_OUT
-          ) {
-            throw new ConflictException(
-              'This booking cannot be cancelled',
-            );
-          }
+        if (
+          booking.status === BookingStatus.CHECKED_IN ||
+          booking.status === BookingStatus.CHECKED_OUT
+        ) {
+          throw new ConflictException('This booking cannot be cancelled');
+        }
 
-          // ------------------------------------------------------
-          // LOCK ROOMS
-          // ------------------------------------------------------
+        // ------------------------------------------------------
+        // LOCK ROOMS
+        // ------------------------------------------------------
 
-          const roomIds =
-            booking.rooms.map(
-              (room) => room.roomId,
-            );
+        const roomIds = booking.rooms.map((room) => room.roomId);
 
-          if (roomIds.length > 0) {
-            await tx.$queryRaw`
+        if (roomIds.length > 0) {
+          await tx.$queryRaw`
               SELECT id
               FROM "Room"
               WHERE id IN (${Prisma.join(roomIds)})
               ORDER BY id
               FOR UPDATE
             `;
-          }
+        }
 
-          // ------------------------------------------------------
-          // DEACTIVATE ROOM ASSIGNMENTS
-          // ------------------------------------------------------
+        // ------------------------------------------------------
+        // DEACTIVATE ROOM ASSIGNMENTS
+        // ------------------------------------------------------
 
-          await tx.bookingRoom.updateMany({
-            where: {
-              bookingId: booking.id,
-            },
-
-            data: {
-              isActive: false,
-            },
-          });
-
-          // ------------------------------------------------------
-          // CANCEL BOOKING
-          // ------------------------------------------------------
-
-          const updatedBooking =
-  await tx.booking.update({
-    where: {
-      id: booking.id,
-    },
-
-    data: {
-      status:
-        BookingStatus.CANCELLED,
-    },
-
-    include: {
-      rooms: {
-        include: {
-          room: {
-            include: {
-              roomType: true,
-            },
+        await tx.bookingRoom.updateMany({
+          where: {
+            bookingId: booking.id,
           },
-        },
+
+          data: {
+            isActive: false,
+          },
+        });
+
+        // ------------------------------------------------------
+        // CANCEL BOOKING
+        // ------------------------------------------------------
+
+        const updatedBooking = await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
+
+          data: {
+            status: BookingStatus.CANCELLED,
+          },
+
+          include: {
+            rooms: {
+              include: {
+                room: {
+                  include: {
+                    roomType: true,
+                  },
+                },
+              },
+            },
+
+            guests: true,
+
+            payments: true,
+          },
+        });
+
+        return updatedBooking;
       },
 
-      guests: true,
-
-      payments: true,
-    },
-  });
-
-          return updatedBooking;
-        },
-
-        {
-          maxWait: 10000,
-          timeout: 20000,
-        },
-      );
+      {
+        maxWait: 10000,
+        timeout: 20000,
+      },
+    );
 
     // ----------------------------------------------------------
     // AUTOMATIC CANCELLATION NOTIFICATION
     // ----------------------------------------------------------
 
-    await this.notificationsService
-      .createNotification({
-        userId:
-          result.customerId,
+    await this.notificationsService.createNotification({
+      userId: result.customerId,
 
-        type:
-          NotificationType.BOOKING_CANCELLED,
+      type: NotificationType.BOOKING_CANCELLED,
 
-        message:
-          `Your booking ${result.bookingReference} has been cancelled.`,
-      });
+      message: `Your booking ${result.bookingReference} has been cancelled.`,
+    });
 
     return result;
   }
@@ -506,45 +442,40 @@ export class BookingsService {
   // ADMIN / CASHIER — ONE BOOKING
   // ============================================================
 
-  async findBookingById(
-    bookingId: string,
-  ) {
-    const booking =
-      await this.prisma.booking.findUnique({
-        where: {
-          id: bookingId,
+  async findBookingById(bookingId: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+      },
+
+      include: {
+        customer: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            email: true,
+          },
         },
 
-        include: {
-          customer: {
-            select: {
-              id: true,
-              fullName: true,
-              phone: true,
-              email: true,
-            },
-          },
-
-          rooms: {
-            include: {
-              room: {
-                include: {
-                  roomType: true,
-                },
+        rooms: {
+          include: {
+            room: {
+              include: {
+                roomType: true,
               },
             },
           },
-
-          guests: true,
-
-          payments: true,
         },
-      });
+
+        guests: true,
+
+        payments: true,
+      },
+    });
 
     if (!booking) {
-      throw new NotFoundException(
-        'Booking not found',
-      );
+      throw new NotFoundException('Booking not found');
     }
 
     return booking;
@@ -554,213 +485,177 @@ export class BookingsService {
   // ADMIN / CASHIER — UPDATE BOOKING STATUS
   // ============================================================
 
-  async updateBookingStatus(
-    bookingId: string,
-    newStatus: BookingStatus,
-  ) {
-    const result =
-      await this.prisma.$transaction(
-        async (tx) => {
-          const booking =
-            await tx.booking.findUnique({
-              where: {
-                id: bookingId,
-              },
+  async updateBookingStatus(bookingId: string, newStatus: BookingStatus) {
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const booking = await tx.booking.findUnique({
+          where: {
+            id: bookingId,
+          },
 
-              include: {
-                rooms: true,
-              },
-            });
+          include: {
+            rooms: true,
+          },
+        });
 
-          if (!booking) {
-            throw new NotFoundException(
-              'Booking not found',
-            );
-          }
+        if (!booking) {
+          throw new NotFoundException('Booking not found');
+        }
 
-          // ------------------------------------------------------
-          // VALIDATE STATUS TRANSITION
-          // ------------------------------------------------------
+        // ------------------------------------------------------
+        // VALIDATE STATUS TRANSITION
+        // ------------------------------------------------------
 
-          this.validateStatusTransition(
-            booking.status,
-            newStatus,
-          );
+        this.validateStatusTransition(booking.status, newStatus);
 
-          const roomIds =
-            booking.rooms.map(
-              (room) => room.roomId,
-            );
+        const roomIds = booking.rooms.map((room) => room.roomId);
 
-          // ------------------------------------------------------
-          // LOCK ROOMS
-          // ------------------------------------------------------
+        // ------------------------------------------------------
+        // LOCK ROOMS
+        // ------------------------------------------------------
 
-          if (roomIds.length > 0) {
-            await tx.$queryRaw`
+        if (roomIds.length > 0) {
+          await tx.$queryRaw`
               SELECT id
               FROM "Room"
               WHERE id IN (${Prisma.join(roomIds)})
               ORDER BY id
               FOR UPDATE
             `;
+        }
+
+        // ------------------------------------------------------
+        // CHECK-IN
+        // ------------------------------------------------------
+
+        if (newStatus === BookingStatus.CHECKED_IN) {
+          const rooms = await tx.room.findMany({
+            where: {
+              id: {
+                in: roomIds,
+              },
+            },
+
+            select: {
+              id: true,
+              roomNumber: true,
+              status: true,
+            },
+          });
+
+          const unavailableRoom = rooms.find(
+            (room) => room.status !== RoomStatus.AVAILABLE,
+          );
+
+          if (unavailableRoom) {
+            throw new ConflictException(
+              `Room ${unavailableRoom.roomNumber} is not available for check-in`,
+            );
           }
 
-          // ------------------------------------------------------
-          // CHECK-IN
-          // ------------------------------------------------------
-
-          if (
-            newStatus ===
-            BookingStatus.CHECKED_IN
-          ) {
-            const rooms =
-              await tx.room.findMany({
-                where: {
-                  id: {
-                    in: roomIds,
-                  },
-                },
-
-                select: {
-                  id: true,
-                  roomNumber: true,
-                  status: true,
-                },
-              });
-
-            const unavailableRoom =
-              rooms.find(
-                (room) =>
-                  room.status !==
-                  RoomStatus.AVAILABLE,
-              );
-
-            if (unavailableRoom) {
-              throw new ConflictException(
-                `Room ${unavailableRoom.roomNumber} is not available for check-in`,
-              );
-            }
-
-            await tx.room.updateMany({
-              where: {
-                id: {
-                  in: roomIds,
-                },
+          await tx.room.updateMany({
+            where: {
+              id: {
+                in: roomIds,
               },
+            },
 
-              data: {
-                status:
-                  RoomStatus.OCCUPIED,
+            data: {
+              status: RoomStatus.OCCUPIED,
+            },
+          });
+        }
+
+        // ------------------------------------------------------
+        // CHECK-OUT
+        // ------------------------------------------------------
+
+        if (newStatus === BookingStatus.CHECKED_OUT) {
+          await tx.room.updateMany({
+            where: {
+              id: {
+                in: roomIds,
               },
-            });
-          }
+            },
 
-          // ------------------------------------------------------
-          // CHECK-OUT
-          // ------------------------------------------------------
+            data: {
+              status: RoomStatus.AVAILABLE,
+            },
+          });
 
-          if (
-            newStatus ===
-            BookingStatus.CHECKED_OUT
-          ) {
-            await tx.room.updateMany({
-              where: {
-                id: {
-                  in: roomIds,
-                },
-              },
+          await tx.bookingRoom.updateMany({
+            where: {
+              bookingId: booking.id,
+            },
 
-              data: {
-                status:
-                  RoomStatus.AVAILABLE,
-              },
-            });
+            data: {
+              isActive: false,
+            },
+          });
+        }
 
-            await tx.bookingRoom.updateMany({
-              where: {
-                bookingId:
-                  booking.id,
-              },
+        // ------------------------------------------------------
+        // CANCEL
+        // ------------------------------------------------------
 
-              data: {
-                isActive: false,
-              },
-            });
-          }
+        if (newStatus === BookingStatus.CANCELLED) {
+          await tx.bookingRoom.updateMany({
+            where: {
+              bookingId: booking.id,
+            },
 
-          // ------------------------------------------------------
-          // CANCEL
-          // ------------------------------------------------------
+            data: {
+              isActive: false,
+            },
+          });
+        }
 
-          if (
-            newStatus ===
-            BookingStatus.CANCELLED
-          ) {
-            await tx.bookingRoom.updateMany({
-              where: {
-                bookingId:
-                  booking.id,
-              },
+        // ------------------------------------------------------
+        // UPDATE BOOKING
+        // ------------------------------------------------------
 
-              data: {
-                isActive: false,
-              },
-            });
-          }
+        const updatedBooking = await tx.booking.update({
+          where: {
+            id: booking.id,
+          },
 
-          // ------------------------------------------------------
-          // UPDATE BOOKING
-          // ------------------------------------------------------
+          data: {
+            status: newStatus,
+          },
 
-          const updatedBooking =
-            await tx.booking.update({
-              where: {
-                id: booking.id,
-              },
-
-              data: {
-                status: newStatus,
-              },
-
+          include: {
+            rooms: {
               include: {
-                rooms: {
+                room: {
                   include: {
-                    room: {
-                      include: {
-                        roomType: true,
-                      },
-                    },
+                    roomType: true,
                   },
                 },
-
-                guests: true,
               },
-            });
+            },
 
-          return {
-            booking:
-              updatedBooking,
+            guests: true,
+          },
+        });
 
-            previousStatus:
-              booking.status,
-          };
-        },
+        return {
+          booking: updatedBooking,
 
-        {
-          maxWait: 10000,
-          timeout: 20000,
-        },
-      );
+          previousStatus: booking.status,
+        };
+      },
+
+      {
+        maxWait: 10000,
+        timeout: 20000,
+      },
+    );
 
     // ----------------------------------------------------------
     // AUTOMATIC NOTIFICATIONS
     // ----------------------------------------------------------
 
-    await this.sendStatusNotification(
-      result.booking,
-      result.previousStatus,
-    );
+    await this.sendStatusNotification(result.booking, result.previousStatus);
 
     return result.booking;
   }
@@ -769,26 +664,16 @@ export class BookingsService {
   // ADMIN / CASHIER — CHECK IN
   // ============================================================
 
-  async checkInBooking(
-    bookingId: string,
-  ) {
-    return this.updateBookingStatus(
-      bookingId,
-      BookingStatus.CHECKED_IN,
-    );
+  async checkInBooking(bookingId: string) {
+    return this.updateBookingStatus(bookingId, BookingStatus.CHECKED_IN);
   }
 
   // ============================================================
   // ADMIN / CASHIER — CHECK OUT
   // ============================================================
 
-  async checkOutBooking(
-    bookingId: string,
-  ) {
-    return this.updateBookingStatus(
-      bookingId,
-      BookingStatus.CHECKED_OUT,
-    );
+  async checkOutBooking(bookingId: string) {
+    return this.updateBookingStatus(bookingId, BookingStatus.CHECKED_OUT);
   }
 
   // ============================================================
@@ -808,22 +693,16 @@ export class BookingsService {
     // ----------------------------------------------------------
 
     if (
-      previousStatus !==
-        BookingStatus.CONFIRMED &&
-      booking.status ===
-        BookingStatus.CONFIRMED
+      previousStatus !== BookingStatus.CONFIRMED &&
+      booking.status === BookingStatus.CONFIRMED
     ) {
-      await this.notificationsService
-        .createNotification({
-          userId:
-            booking.customerId,
+      await this.notificationsService.createNotification({
+        userId: booking.customerId,
 
-          type:
-            NotificationType.BOOKING_CONFIRMED,
+        type: NotificationType.BOOKING_CONFIRMED,
 
-          message:
-            `Your booking ${booking.bookingReference} has been confirmed.`,
-        });
+        message: `Your booking ${booking.bookingReference} has been confirmed.`,
+      });
     }
 
     // ----------------------------------------------------------
@@ -831,22 +710,16 @@ export class BookingsService {
     // ----------------------------------------------------------
 
     if (
-      previousStatus !==
-        BookingStatus.CANCELLED &&
-      booking.status ===
-        BookingStatus.CANCELLED
+      previousStatus !== BookingStatus.CANCELLED &&
+      booking.status === BookingStatus.CANCELLED
     ) {
-      await this.notificationsService
-        .createNotification({
-          userId:
-            booking.customerId,
+      await this.notificationsService.createNotification({
+        userId: booking.customerId,
 
-          type:
-            NotificationType.BOOKING_CANCELLED,
+        type: NotificationType.BOOKING_CANCELLED,
 
-          message:
-            `Your booking ${booking.bookingReference} has been cancelled.`,
-        });
+        message: `Your booking ${booking.bookingReference} has been cancelled.`,
+      });
     }
   }
 
@@ -858,10 +731,7 @@ export class BookingsService {
     currentStatus: BookingStatus,
     newStatus: BookingStatus,
   ) {
-    const allowedTransitions: Record<
-      BookingStatus,
-      BookingStatus[]
-    > = {
+    const allowedTransitions: Record<BookingStatus, BookingStatus[]> = {
       [BookingStatus.PENDING]: [
         BookingStatus.CONFIRMED,
         BookingStatus.CANCELLED,
@@ -872,28 +742,18 @@ export class BookingsService {
         BookingStatus.CANCELLED,
       ],
 
-      [BookingStatus.CHECKED_IN]: [
-        BookingStatus.CHECKED_OUT,
-      ],
+      [BookingStatus.CHECKED_IN]: [BookingStatus.CHECKED_OUT],
 
       [BookingStatus.CHECKED_OUT]: [],
 
       [BookingStatus.CANCELLED]: [],
     };
 
-    if (
-      currentStatus === newStatus
-    ) {
-      throw new BadRequestException(
-        `Booking is already ${currentStatus}`,
-      );
+    if (currentStatus === newStatus) {
+      throw new BadRequestException(`Booking is already ${currentStatus}`);
     }
 
-    if (
-      !allowedTransitions[
-        currentStatus
-      ].includes(newStatus)
-    ) {
+    if (!allowedTransitions[currentStatus].includes(newStatus)) {
       throw new ConflictException(
         `Cannot change booking status from ${currentStatus} to ${newStatus}`,
       );
@@ -904,27 +764,13 @@ export class BookingsService {
   // PRIVATE — DATE VALIDATION
   // ============================================================
 
-  private validateBookingDates(
-    checkIn: Date,
-    checkOut: Date,
-  ) {
-    if (
-      Number.isNaN(
-        checkIn.getTime(),
-      ) ||
-      Number.isNaN(
-        checkOut.getTime(),
-      )
-    ) {
-      throw new BadRequestException(
-        'Invalid check-in or check-out date',
-      );
+  private validateBookingDates(checkIn: Date, checkOut: Date) {
+    if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime())) {
+      throw new BadRequestException('Invalid check-in or check-out date');
     }
 
     if (checkIn >= checkOut) {
-      throw new BadRequestException(
-        'Check-out must be after check-in',
-      );
+      throw new BadRequestException('Check-out must be after check-in');
     }
   }
 
@@ -932,25 +778,15 @@ export class BookingsService {
   // PRIVATE — ROOM ID VALIDATION
   // ============================================================
 
-  private validateRoomIds(
-    roomIds: string[],
-  ) {
+  private validateRoomIds(roomIds: string[]) {
     if (roomIds.length === 0) {
-      throw new BadRequestException(
-        'At least one room is required',
-      );
+      throw new BadRequestException('At least one room is required');
     }
 
-    const uniqueRoomIds =
-      new Set(roomIds);
+    const uniqueRoomIds = new Set(roomIds);
 
-    if (
-      uniqueRoomIds.size !==
-      roomIds.length
-    ) {
-      throw new BadRequestException(
-        'Duplicate rooms are not allowed',
-      );
+    if (uniqueRoomIds.size !== roomIds.length) {
+      throw new BadRequestException('Duplicate rooms are not allowed');
     }
   }
 
@@ -958,21 +794,12 @@ export class BookingsService {
   // PRIVATE — CALCULATE NIGHTS
   // ============================================================
 
-  private calculateNights(
-    checkIn: Date,
-    checkOut: Date,
-  ): number {
-    const millisecondsPerDay =
-      1000 * 60 * 60 * 24;
+  private calculateNights(checkIn: Date, checkOut: Date): number {
+    const millisecondsPerDay = 1000 * 60 * 60 * 24;
 
-    const difference =
-      checkOut.getTime() -
-      checkIn.getTime();
+    const difference = checkOut.getTime() - checkIn.getTime();
 
-    return Math.ceil(
-      difference /
-        millisecondsPerDay,
-    );
+    return Math.ceil(difference / millisecondsPerDay);
   }
 
   // ============================================================
@@ -983,20 +810,15 @@ export class BookingsService {
     tx: Prisma.TransactionClient,
   ): Promise<string> {
     while (true) {
-      const reference =
-        `HTL-${Date.now()}-${Math.floor(
-          Math.random() * 10000,
-        )
-          .toString()
-          .padStart(4, '0')}`;
+      const reference = `HTL-${Date.now()}-${Math.floor(Math.random() * 10000)
+        .toString()
+        .padStart(4, '0')}`;
 
-      const existing =
-        await tx.booking.findUnique({
-          where: {
-            bookingReference:
-              reference,
-          },
-        });
+      const existing = await tx.booking.findUnique({
+        where: {
+          bookingReference: reference,
+        },
+      });
 
       if (!existing) {
         return reference;

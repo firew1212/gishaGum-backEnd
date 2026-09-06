@@ -4,7 +4,6 @@ import {
   IsEmail,
   IsNotEmpty,
   IsOptional,
-  IsPhoneNumber,
   IsUUID,
   ValidateNested,
 } from 'class-validator';

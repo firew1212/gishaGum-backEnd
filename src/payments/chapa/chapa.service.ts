@@ -1,15 +1,8 @@
-import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 
 import { ConfigService } from '@nestjs/config';
 
-import axios, {
-  AxiosError,
-  AxiosInstance,
-} from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 
 interface ChapaInitializeRequest {
   amount: string;
@@ -46,28 +39,16 @@ interface ChapaVerifyResponse {
   };
 }
 
-
-
 @Injectable()
 export class ChapaService {
-  private readonly logger = new Logger(
-    ChapaService.name,
-  );
+  private readonly logger = new Logger(ChapaService.name);
 
   private readonly http: AxiosInstance;
 
-  constructor(
-    private readonly configService: ConfigService,
-  ) {
-    const baseURL =
-      this.configService.getOrThrow<string>(
-        'CHAPA_BASE_URL',
-      );
+  constructor(private readonly configService: ConfigService) {
+    const baseURL = this.configService.getOrThrow<string>('CHAPA_BASE_URL');
 
-    const secretKey =
-      this.configService.getOrThrow<string>(
-        'CHAPA_SECRET_KEY',
-      );
+    const secretKey = this.configService.getOrThrow<string>('CHAPA_SECRET_KEY');
 
     this.http = axios.create({
       baseURL,
@@ -77,9 +58,7 @@ export class ChapaService {
       },
     });
 
-    this.logger.log(
-      `Chapa client initialized: ${baseURL}`,
-    );
+    this.logger.log(`Chapa client initialized: ${baseURL}`);
   }
 
   // ==================================================
@@ -90,16 +69,15 @@ export class ChapaService {
     payload: ChapaInitializeRequest,
   ): Promise<ChapaInitializeResponse> {
     try {
-      const response =
-        await this.http.post<ChapaInitializeResponse>(
-          '/v1/transaction/initialize',
-          payload,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-            },
+      const response = await this.http.post<ChapaInitializeResponse>(
+        '/v1/transaction/initialize',
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
           },
-        );
+        },
+      );
 
       return response.data;
     } catch (error) {
@@ -115,16 +93,11 @@ export class ChapaService {
   // VERIFY PAYMENT
   // ==================================================
 
-  async verifyTransaction(
-    txRef: string,
-  ): Promise<ChapaVerifyResponse> {
+  async verifyTransaction(txRef: string): Promise<ChapaVerifyResponse> {
     try {
-      const response =
-        await this.http.get<ChapaVerifyResponse>(
-          `/v1/transaction/verify/${encodeURIComponent(
-            txRef,
-          )}`,
-        );
+      const response = await this.http.get<ChapaVerifyResponse>(
+        `/v1/transaction/verify/${encodeURIComponent(txRef)}`,
+      );
 
       return response.data;
     } catch (error) {
@@ -136,10 +109,6 @@ export class ChapaService {
     }
   }
 
-  
-
- 
-
   // ==================================================
   // COMMON ERROR HANDLER
   // ==================================================
@@ -149,24 +118,18 @@ export class ChapaService {
     logMessage: string,
     clientMessage: string,
   ): never {
-    const axiosError =
-      error as AxiosError<{
-        message?: string;
-        status?: string;
-        data?: unknown;
-      }>;
+    const axiosError = error as AxiosError<{
+      message?: string;
+      status?: string;
+      data?: unknown;
+    }>;
 
     this.logger.error(logMessage, {
-      statusCode:
-        axiosError.response?.status,
+      statusCode: axiosError.response?.status,
 
-      message:
-        axiosError.response?.data?.message ??
-        axiosError.message,
+      message: axiosError.response?.data?.message ?? axiosError.message,
     });
 
-    throw new BadGatewayException(
-      clientMessage,
-    );
+    throw new BadGatewayException(clientMessage);
   }
 }

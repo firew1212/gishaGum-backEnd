@@ -43,10 +43,7 @@ export class RoomTypesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() dto: UpdateRoomTypeDto,
-  ) {
+  update(@Param('id') id: string, @Body() dto: UpdateRoomTypeDto) {
     return this.roomsService.updateRoomType(id, dto);
   }
 

@@ -25,9 +25,7 @@ import { PaymentsService } from './payments.service.js';
 
 @Controller('payments')
 export class PaymentsController {
-  constructor(
-    private readonly paymentsService: PaymentsService,
-  ) {}
+  constructor(private readonly paymentsService: PaymentsService) {}
 
   @UseGuards(JwtAuthGuard)
   @Post('initialize')
@@ -37,10 +35,7 @@ export class PaymentsController {
   ) {
     const user = request.user as { id: string };
 
-    return this.paymentsService.initializePayment(
-      user.id,
-      dto,
-    );
+    return this.paymentsService.initializePayment(user.id, dto);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -53,26 +48,16 @@ export class PaymentsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('verify/:txRef')
-  verifyPayment(
-    @Req() request: Request,
-    @Param('txRef') txRef: string,
-  ) {
+  verifyPayment(@Req() request: Request, @Param('txRef') txRef: string) {
     const user = request.user as { id: string };
 
-    return this.paymentsService.verifyPayment(
-      user.id,
-      txRef,
-    );
+    return this.paymentsService.verifyPayment(user.id, txRef);
   }
 
   @Get('chapa/callback')
-chapaCallback(
-  @Body() body: unknown,
-) {
-  return this.paymentsService.handleChapaCallback(
-    body,
-  );
-}
+  chapaCallback(@Body() body: unknown) {
+    return this.paymentsService.handleChapaCallback(body);
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

@@ -12,23 +12,12 @@ import { PaymentsService } from './payments.service.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
-  imports: [
-    ConfigModule,
-    PrismaModule,
-    NotificationsModule,
-  ],
+  imports: [ConfigModule, PrismaModule, NotificationsModule],
 
-  controllers: [
-    PaymentsController,
-  ],
+  controllers: [PaymentsController],
 
-  providers: [
-    PaymentsService,
-    ChapaService,
-  ],
+  providers: [PaymentsService, ChapaService],
 
-  exports: [
-    PaymentsService,
-  ],
+  exports: [PaymentsService],
 })
 export class PaymentsModule {}

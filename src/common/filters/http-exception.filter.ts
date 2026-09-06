@@ -9,61 +9,41 @@ import {
 import type { Request, Response } from 'express';
 
 @Catch()
-export class HttpExceptionFilter
-  implements ExceptionFilter
-{
-  catch(
-    exception: unknown,
-    host: ArgumentsHost,
-  ) {
-    const context =
-      host.switchToHttp();
+export class HttpExceptionFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const context = host.switchToHttp();
 
-    const response =
-      context.getResponse<Response>();
+    const response = context.getResponse<Response>();
 
-    const request =
-      context.getRequest<Request>();
+    const request = context.getRequest<Request>();
 
-    let status =
-      HttpStatus.INTERNAL_SERVER_ERROR;
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
 
-    let message =
-      'Internal server error';
+    let message = 'Internal server error';
 
     // -----------------------------------------------
     // NestJS HTTP exception
     // -----------------------------------------------
 
     if (exception instanceof HttpException) {
-      status =
-        exception.getStatus();
+      status = exception.getStatus();
 
-      const exceptionResponse =
-        exception.getResponse();
+      const exceptionResponse = exception.getResponse();
 
-      if (
-        typeof exceptionResponse ===
-        'string'
-      ) {
-        message =
-          exceptionResponse;
+      if (typeof exceptionResponse === 'string') {
+        message = exceptionResponse;
       } else if (
-        typeof exceptionResponse ===
-          'object' &&
+        typeof exceptionResponse === 'object' &&
         exceptionResponse !== null
       ) {
-        const data =
-          exceptionResponse as {
-            message?: string | string[];
-          };
+        const data = exceptionResponse as {
+          message?: string | string[];
+        };
 
         if (Array.isArray(data.message)) {
-          message =
-            data.message.join(', ');
+          message = data.message.join(', ');
         } else if (data.message) {
-          message =
-            data.message;
+          message = data.message;
         }
       }
     }
@@ -81,8 +61,7 @@ export class HttpExceptionFilter
 
       path: request.url,
 
-      timestamp:
-        new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     });
   }
 }

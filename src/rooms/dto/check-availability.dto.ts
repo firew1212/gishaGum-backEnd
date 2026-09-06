@@ -1,9 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsDate,
-  IsOptional,
-  IsUUID,
-} from 'class-validator';
+import { IsDate, IsOptional, IsUUID } from 'class-validator';
 
 export class CheckAvailabilityDto {
   @Type(() => Date)

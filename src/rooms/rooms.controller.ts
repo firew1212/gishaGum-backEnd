@@ -7,7 +7,6 @@ import {
   Patch,
   Post,
   UseGuards,
-  Query,
 } from '@nestjs/common';
 
 import { UserRole } from '../../generated/prisma/client.js';
@@ -20,13 +19,7 @@ import { CreateRoomDto } from './dto/create-room.dto.js';
 import { UpdateRoomDto } from './dto/update-room.dto.js';
 import { RoomsService } from './rooms.service.js';
 
-import { CheckAvailabilityDto } from './dto/check-availability.dto.js';
-
-
-
-
 @Controller('rooms')
-
 export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
@@ -42,30 +35,22 @@ export class RoomsController {
     return this.roomsService.findAllRooms();
   }
 
-
-
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.roomsService.findRoomById(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
- @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() dto: UpdateRoomDto,
-  ) {
+  update(@Param('id') id: string, @Body() dto: UpdateRoomDto) {
     return this.roomsService.updateRoom(id, dto);
   }
 
-
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.roomsService.deleteRoom(id);
   }
-
-  
 }

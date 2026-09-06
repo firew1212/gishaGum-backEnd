@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -9,32 +6,25 @@ import { CreateNotificationDto } from './dto/create-notification.dto.js';
 
 @Injectable()
 export class NotificationsService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // ==================================================
   // CREATE NOTIFICATION
   // ==================================================
 
-  async createNotification(
-    dto: CreateNotificationDto,
-  ) {
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          id: dto.userId,
-        },
+  async createNotification(dto: CreateNotificationDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: dto.userId,
+      },
 
-        select: {
-          id: true,
-        },
-      });
+      select: {
+        id: true,
+      },
+    });
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found',
-      );
+      throw new NotFoundException('User not found');
     }
 
     return this.prisma.notification.create({
@@ -50,9 +40,7 @@ export class NotificationsService {
   // GET MY NOTIFICATIONS
   // ==================================================
 
-  async findMyNotifications(
-    userId: string,
-  ) {
+  async findMyNotifications(userId: string) {
     return this.prisma.notification.findMany({
       where: {
         userId,
@@ -68,9 +56,7 @@ export class NotificationsService {
   // GET MY UNREAD NOTIFICATIONS
   // ==================================================
 
-  async findMyUnreadNotifications(
-    userId: string,
-  ) {
+  async findMyUnreadNotifications(userId: string) {
     return this.prisma.notification.findMany({
       where: {
         userId,
@@ -87,16 +73,13 @@ export class NotificationsService {
   // GET UNREAD COUNT
   // ==================================================
 
-  async getUnreadCount(
-    userId: string,
-  ) {
-    const count =
-      await this.prisma.notification.count({
-        where: {
-          userId,
-          isRead: false,
-        },
-      });
+  async getUnreadCount(userId: string) {
+    const count = await this.prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+      },
+    });
 
     return {
       count,
@@ -107,22 +90,16 @@ export class NotificationsService {
   // GET ONE NOTIFICATION
   // ==================================================
 
-  async findMyNotification(
-    userId: string,
-    notificationId: string,
-  ) {
-    const notification =
-      await this.prisma.notification.findFirst({
-        where: {
-          id: notificationId,
-          userId,
-        },
-      });
+  async findMyNotification(userId: string, notificationId: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        userId,
+      },
+    });
 
     if (!notification) {
-      throw new NotFoundException(
-        'Notification not found',
-      );
+      throw new NotFoundException('Notification not found');
     }
 
     return notification;
@@ -132,48 +109,39 @@ export class NotificationsService {
   // MARK ONE AS READ
   // ==================================================
 
-  async markAsRead(
-    userId: string,
-    notificationId: string,
-  ) {
-    const notification =
-      await this.prisma.notification.findFirst({
-        where: {
-          id: notificationId,
-          userId,
-        },
-      });
+  async markAsRead(userId: string, notificationId: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        userId,
+      },
+    });
 
     if (!notification) {
-      throw new NotFoundException(
-        'Notification not found',
-      );
+      throw new NotFoundException('Notification not found');
     }
 
     if (notification.isRead) {
       return {
         success: true,
-        message:
-          'Notification already marked as read',
+        message: 'Notification already marked as read',
         notification,
       };
     }
 
-    const updated =
-      await this.prisma.notification.update({
-        where: {
-          id: notification.id,
-        },
+    const updated = await this.prisma.notification.update({
+      where: {
+        id: notification.id,
+      },
 
-        data: {
-          isRead: true,
-        },
-      });
+      data: {
+        isRead: true,
+      },
+    });
 
     return {
       success: true,
-      message:
-        'Notification marked as read',
+      message: 'Notification marked as read',
       notification: updated,
     };
   }
@@ -182,29 +150,24 @@ export class NotificationsService {
   // MARK ALL AS READ
   // ==================================================
 
-  async markAllAsRead(
-    userId: string,
-  ) {
-    const result =
-      await this.prisma.notification.updateMany({
-        where: {
-          userId,
-          isRead: false,
-        },
+  async markAllAsRead(userId: string) {
+    const result = await this.prisma.notification.updateMany({
+      where: {
+        userId,
+        isRead: false,
+      },
 
-        data: {
-          isRead: true,
-        },
-      });
+      data: {
+        isRead: true,
+      },
+    });
 
     return {
       success: true,
 
-      message:
-        'All notifications marked as read',
+      message: 'All notifications marked as read',
 
-      updatedCount:
-        result.count,
+      updatedCount: result.count,
     };
   }
 
@@ -212,22 +175,16 @@ export class NotificationsService {
   // DELETE ONE NOTIFICATION
   // ==================================================
 
-  async deleteNotification(
-    userId: string,
-    notificationId: string,
-  ) {
-    const notification =
-      await this.prisma.notification.findFirst({
-        where: {
-          id: notificationId,
-          userId,
-        },
-      });
+  async deleteNotification(userId: string, notificationId: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        userId,
+      },
+    });
 
     if (!notification) {
-      throw new NotFoundException(
-        'Notification not found',
-      );
+      throw new NotFoundException('Notification not found');
     }
 
     await this.prisma.notification.delete({
@@ -239,8 +196,7 @@ export class NotificationsService {
     return {
       success: true,
 
-      message:
-        'Notification deleted successfully',
+      message: 'Notification deleted successfully',
     };
   }
 }

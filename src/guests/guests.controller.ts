@@ -21,9 +21,7 @@ import { GuestsService } from './guests.service.js';
 @Controller('guests')
 @UseGuards(JwtAuthGuard)
 export class GuestsController {
-  constructor(
-    private readonly guestsService: GuestsService,
-  ) {}
+  constructor(private readonly guestsService: GuestsService) {}
 
   // ==================================================
   // CREATE GUEST
@@ -39,11 +37,7 @@ export class GuestsController {
       id: string;
     };
 
-    return this.guestsService.createGuest(
-      user.id,
-      bookingId,
-      dto,
-    );
+    return this.guestsService.createGuest(user.id, bookingId, dto);
   }
 
   // ==================================================
@@ -59,10 +53,7 @@ export class GuestsController {
       id: string;
     };
 
-    return this.guestsService.findMyBookingGuests(
-      user.id,
-      bookingId,
-    );
+    return this.guestsService.findMyBookingGuests(user.id, bookingId);
   }
 
   // ==================================================
@@ -70,18 +61,12 @@ export class GuestsController {
   // ==================================================
 
   @Get(':id')
-  findMyGuest(
-    @Req() request: Request,
-    @Param('id') guestId: string,
-  ) {
+  findMyGuest(@Req() request: Request, @Param('id') guestId: string) {
     const user = request.user as {
       id: string;
     };
 
-    return this.guestsService.findMyGuest(
-      user.id,
-      guestId,
-    );
+    return this.guestsService.findMyGuest(user.id, guestId);
   }
 
   // ==================================================
@@ -98,11 +83,7 @@ export class GuestsController {
       id: string;
     };
 
-    return this.guestsService.updateGuest(
-      user.id,
-      guestId,
-      dto,
-    );
+    return this.guestsService.updateGuest(user.id, guestId, dto);
   }
 
   // ==================================================
@@ -110,17 +91,11 @@ export class GuestsController {
   // ==================================================
 
   @Delete(':id')
-  deleteGuest(
-    @Req() request: Request,
-    @Param('id') guestId: string,
-  ) {
+  deleteGuest(@Req() request: Request, @Param('id') guestId: string) {
     const user = request.user as {
       id: string;
     };
 
-    return this.guestsService.deleteGuest(
-      user.id,
-      guestId,
-    );
+    return this.guestsService.deleteGuest(user.id, guestId);
   }
 }

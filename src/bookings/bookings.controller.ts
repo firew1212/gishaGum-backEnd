@@ -24,27 +24,19 @@ import { BookingsService } from './bookings.service.js';
 @Controller('bookings')
 @UseGuards(JwtAuthGuard)
 export class BookingsController {
-  constructor(
-    private readonly bookingsService: BookingsService,
-  ) {}
+  constructor(private readonly bookingsService: BookingsService) {}
 
   // ==================================================
   // CUSTOMER — CREATE BOOKING
   // ==================================================
 
   @Post()
-  create(
-    @Req() request: Request,
-    @Body() dto: CreateBookingDto,
-  ) {
+  create(@Req() request: Request, @Body() dto: CreateBookingDto) {
     const user = request.user as {
       id: string;
     };
 
-    return this.bookingsService.createBooking(
-      user.id,
-      dto,
-    );
+    return this.bookingsService.createBooking(user.id, dto);
   }
 
   // ==================================================
@@ -57,9 +49,7 @@ export class BookingsController {
       id: string;
     };
 
-    return this.bookingsService.findMyBookings(
-      user.id,
-    );
+    return this.bookingsService.findMyBookings(user.id);
   }
 
   // ==================================================
@@ -67,18 +57,12 @@ export class BookingsController {
   // ==================================================
 
   @Get('my/:id')
-  findMyBooking(
-    @Req() request: Request,
-    @Param('id') bookingId: string,
-  ) {
+  findMyBooking(@Req() request: Request, @Param('id') bookingId: string) {
     const user = request.user as {
       id: string;
     };
 
-    return this.bookingsService.findMyBooking(
-      user.id,
-      bookingId,
-    );
+    return this.bookingsService.findMyBooking(user.id, bookingId);
   }
 
   // ==================================================
@@ -86,18 +70,12 @@ export class BookingsController {
   // ==================================================
 
   @Patch(':id/cancel')
-  cancel(
-    @Req() request: Request,
-    @Param('id') bookingId: string,
-  ) {
+  cancel(@Req() request: Request, @Param('id') bookingId: string) {
     const user = request.user as {
       id: string;
     };
 
-    return this.bookingsService.cancelBooking(
-      user.id,
-      bookingId,
-    );
+    return this.bookingsService.cancelBooking(user.id, bookingId);
   }
 
   // ==================================================
@@ -118,12 +96,8 @@ export class BookingsController {
   @Get(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.CASHIER)
-  findBookingById(
-    @Param('id') bookingId: string,
-  ) {
-    return this.bookingsService.findBookingById(
-      bookingId,
-    );
+  findBookingById(@Param('id') bookingId: string) {
+    return this.bookingsService.findBookingById(bookingId);
   }
 
   // ==================================================
@@ -137,10 +111,7 @@ export class BookingsController {
     @Param('id') bookingId: string,
     @Body() dto: UpdateBookingStatusDto,
   ) {
-    return this.bookingsService.updateBookingStatus(
-      bookingId,
-      dto.status,
-    );
+    return this.bookingsService.updateBookingStatus(bookingId, dto.status);
   }
 
   // ==================================================
@@ -150,12 +121,8 @@ export class BookingsController {
   @Patch(':id/check-in')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.CASHIER)
-  checkInBooking(
-    @Param('id') bookingId: string,
-  ) {
-    return this.bookingsService.checkInBooking(
-      bookingId,
-    );
+  checkInBooking(@Param('id') bookingId: string) {
+    return this.bookingsService.checkInBooking(bookingId);
   }
 
   // ==================================================
@@ -165,11 +132,7 @@ export class BookingsController {
   @Patch(':id/check-out')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.CASHIER)
-  checkOutBooking(
-    @Param('id') bookingId: string,
-  ) {
-    return this.bookingsService.checkOutBooking(
-      bookingId,
-    );
+  checkOutBooking(@Param('id') bookingId: string) {
+    return this.bookingsService.checkOutBooking(bookingId);
   }
 }

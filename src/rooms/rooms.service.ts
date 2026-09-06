@@ -231,9 +231,7 @@ export class RoomsService {
     });
 
     if (bookingCount > 0) {
-      throw new ConflictException(
-        'Cannot delete a room with booking history',
-      );
+      throw new ConflictException('Cannot delete a room with booking history');
     }
 
     await this.prisma.room.delete({
@@ -245,50 +243,49 @@ export class RoomsService {
     };
   }
 
-
   async checkAvailability(dto: CheckAvailabilityDto) {
-  const { checkIn, checkOut, roomTypeId } = dto;
+    const { checkIn, checkOut, roomTypeId } = dto;
 
-  if (checkOut <= checkIn) {
-    throw new BadRequestException(
-      'Check-out date must be after check-in date',
-    );
-  }
+    if (checkOut <= checkIn) {
+      throw new BadRequestException(
+        'Check-out date must be after check-in date',
+      );
+    }
 
-  const rooms = await this.prisma.room.findMany({
-    where: {
-      status: {
-        notIn: ['MAINTENANCE', 'OUT_OF_SERVICE'],
-      },
+    const rooms = await this.prisma.room.findMany({
+      where: {
+        status: {
+          notIn: ['MAINTENANCE', 'OUT_OF_SERVICE'],
+        },
 
-      ...(roomTypeId && {
-        roomTypeId,
-      }),
+        ...(roomTypeId && {
+          roomTypeId,
+        }),
 
-      bookings: {
-        none: {
-          isActive: true,
+        bookings: {
+          none: {
+            isActive: true,
 
-          checkIn: {
-            lt: checkOut,
-          },
+            checkIn: {
+              lt: checkOut,
+            },
 
-          checkOut: {
-            gt: checkIn,
+            checkOut: {
+              gt: checkIn,
+            },
           },
         },
       },
-    },
 
-    include: {
-      roomType: true,
-    },
+      include: {
+        roomType: true,
+      },
 
-    orderBy: {
-      roomNumber: 'asc',
-    },
-  });
+      orderBy: {
+        roomNumber: 'asc',
+      },
+    });
 
-  return rooms;
-}
+    return rooms;
+  }
 }

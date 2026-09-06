@@ -13,9 +13,6 @@ import { RoomsService } from './rooms.service.js';
     RoomsController,
     RoomAvailabilityController,
   ],
-  providers: [
-    RoomsService,
-    PrismaService,
-  ],
+  providers: [RoomsService, PrismaService],
 })
 export class RoomsModule {}

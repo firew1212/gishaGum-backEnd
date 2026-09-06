@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 
 import type { Request } from 'express';
 
@@ -37,12 +30,12 @@ export class AuthController {
     return request.user;
   }
 
-@Roles(UserRole.ADMIN)
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Get('admin-test')
-adminTest() {
-  return {
-    message: 'You are an ADMIN',
-  };
-}
+  @Roles(UserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Get('admin-test')
+  adminTest() {
+    return {
+      message: 'You are an ADMIN',
+    };
+  }
 }

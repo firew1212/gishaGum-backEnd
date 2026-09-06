@@ -1,10 +1,4 @@
-import {
-  IsEnum,
-  IsNumber,
-  IsString,
-  IsUUID,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsNumber, IsString, IsUUID, Min } from 'class-validator';
 
 import {
   PaymentMethod,

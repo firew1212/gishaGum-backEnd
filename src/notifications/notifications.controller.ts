@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Patch,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
 
 import type { Request } from 'express';
 
@@ -16,25 +9,19 @@ import { NotificationsService } from './notifications.service.js';
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
-  constructor(
-    private readonly notificationsService: NotificationsService,
-  ) {}
+  constructor(private readonly notificationsService: NotificationsService) {}
 
   // ==================================================
   // CUSTOMER — GET MY NOTIFICATIONS
   // ==================================================
 
   @Get('my')
-  findMyNotifications(
-    @Req() request: Request,
-  ) {
+  findMyNotifications(@Req() request: Request) {
     const user = request.user as {
       id: string;
     };
 
-    return this.notificationsService.findMyNotifications(
-      user.id,
-    );
+    return this.notificationsService.findMyNotifications(user.id);
   }
 
   // ==================================================
@@ -42,16 +29,12 @@ export class NotificationsController {
   // ==================================================
 
   @Get('my/unread')
-  findMyUnreadNotifications(
-    @Req() request: Request,
-  ) {
+  findMyUnreadNotifications(@Req() request: Request) {
     const user = request.user as {
       id: string;
     };
 
-    return this.notificationsService.findMyUnreadNotifications(
-      user.id,
-    );
+    return this.notificationsService.findMyUnreadNotifications(user.id);
   }
 
   // ==================================================
@@ -59,16 +42,12 @@ export class NotificationsController {
   // ==================================================
 
   @Get('my/unread/count')
-  getUnreadCount(
-    @Req() request: Request,
-  ) {
+  getUnreadCount(@Req() request: Request) {
     const user = request.user as {
       id: string;
     };
 
-    return this.notificationsService.getUnreadCount(
-      user.id,
-    );
+    return this.notificationsService.getUnreadCount(user.id);
   }
 
   // ==================================================
@@ -95,18 +74,12 @@ export class NotificationsController {
   // ==================================================
 
   @Patch('my/:id/read')
-  markAsRead(
-    @Req() request: Request,
-    @Param('id') notificationId: string,
-  ) {
+  markAsRead(@Req() request: Request, @Param('id') notificationId: string) {
     const user = request.user as {
       id: string;
     };
 
-    return this.notificationsService.markAsRead(
-      user.id,
-      notificationId,
-    );
+    return this.notificationsService.markAsRead(user.id, notificationId);
   }
 
   // ==================================================
@@ -114,16 +87,12 @@ export class NotificationsController {
   // ==================================================
 
   @Patch('my/read-all')
-  markAllAsRead(
-    @Req() request: Request,
-  ) {
+  markAllAsRead(@Req() request: Request) {
     const user = request.user as {
       id: string;
     };
 
-    return this.notificationsService.markAllAsRead(
-      user.id,
-    );
+    return this.notificationsService.markAllAsRead(user.id);
   }
 
   // ==================================================

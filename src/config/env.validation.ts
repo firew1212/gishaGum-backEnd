@@ -1,9 +1,4 @@
-import {
-  IsNotEmpty,
-  IsString,
-  IsUrl,
-  validateSync,
-} from 'class-validator';
+import { IsNotEmpty, IsString, IsUrl, validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
   @IsString()
@@ -28,29 +23,17 @@ export class EnvironmentVariables {
   // CHAPA_RETURN_URL!: string;
 }
 
-export function validateEnvironment(
-  config: Record<string, unknown>,
-) {
-  const environment =
-    Object.assign(
-      new EnvironmentVariables(),
-      config,
-    );
+export function validateEnvironment(config: Record<string, unknown>) {
+  const environment = Object.assign(new EnvironmentVariables(), config);
 
-  const errors =
-    validateSync(environment, {
-      skipMissingProperties: false,
-    });
+  const errors = validateSync(environment, {
+    skipMissingProperties: false,
+  });
 
   if (errors.length > 0) {
     throw new Error(
       `Environment validation failed: ${errors
-        .map(
-          (error) =>
-            Object.values(
-              error.constraints ?? {},
-            ).join(', '),
-        )
+        .map((error) => Object.values(error.constraints ?? {}).join(', '))
         .join('; ')}`,
     );
   }

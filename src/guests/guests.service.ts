@@ -11,9 +11,7 @@ import { UpdateGuestDto } from './dto/update-guest.dto.js';
 
 @Injectable()
 export class GuestsService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // ==================================================
   // CREATE GUEST
@@ -24,33 +22,27 @@ export class GuestsService {
     bookingId: string,
     dto: CreateGuestDto,
   ) {
-    const booking =
-      await this.prisma.booking.findFirst({
-        where: {
-          id: bookingId,
-          customerId,
-        },
-      });
+    const booking = await this.prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        customerId,
+      },
+    });
 
     if (!booking) {
-      throw new NotFoundException(
-        'Booking not found',
-      );
+      throw new NotFoundException('Booking not found');
     }
 
     if (dto.isPrimary) {
-      const existingPrimary =
-        await this.prisma.guest.findFirst({
-          where: {
-            bookingId,
-            isPrimary: true,
-          },
-        });
+      const existingPrimary = await this.prisma.guest.findFirst({
+        where: {
+          bookingId,
+          isPrimary: true,
+        },
+      });
 
       if (existingPrimary) {
-        throw new ConflictException(
-          'This booking already has a primary guest',
-        );
+        throw new ConflictException('This booking already has a primary guest');
       }
     }
 
@@ -71,22 +63,16 @@ export class GuestsService {
   // GET MY BOOKING GUESTS
   // ==================================================
 
-  async findMyBookingGuests(
-    customerId: string,
-    bookingId: string,
-  ) {
-    const booking =
-      await this.prisma.booking.findFirst({
-        where: {
-          id: bookingId,
-          customerId,
-        },
-      });
+  async findMyBookingGuests(customerId: string, bookingId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        customerId,
+      },
+    });
 
     if (!booking) {
-      throw new NotFoundException(
-        'Booking not found',
-      );
+      throw new NotFoundException('Booking not found');
     }
 
     return this.prisma.guest.findMany({
@@ -103,24 +89,18 @@ export class GuestsService {
   // GET SINGLE GUEST
   // ==================================================
 
-  async findMyGuest(
-    customerId: string,
-    guestId: string,
-  ) {
-    const guest =
-      await this.prisma.guest.findFirst({
-        where: {
-          id: guestId,
-          booking: {
-            customerId,
-          },
+  async findMyGuest(customerId: string, guestId: string) {
+    const guest = await this.prisma.guest.findFirst({
+      where: {
+        id: guestId,
+        booking: {
+          customerId,
         },
-      });
+      },
+    });
 
     if (!guest) {
-      throw new NotFoundException(
-        'Guest not found',
-      );
+      throw new NotFoundException('Guest not found');
     }
 
     return guest;
@@ -130,43 +110,33 @@ export class GuestsService {
   // UPDATE GUEST
   // ==================================================
 
-  async updateGuest(
-    customerId: string,
-    guestId: string,
-    dto: UpdateGuestDto,
-  ) {
-    const guest =
-      await this.prisma.guest.findFirst({
+  async updateGuest(customerId: string, guestId: string, dto: UpdateGuestDto) {
+    const guest = await this.prisma.guest.findFirst({
+      where: {
+        id: guestId,
+        booking: {
+          customerId,
+        },
+      },
+    });
+
+    if (!guest) {
+      throw new NotFoundException('Guest not found');
+    }
+
+    if (dto.isPrimary === true) {
+      const existingPrimary = await this.prisma.guest.findFirst({
         where: {
-          id: guestId,
-          booking: {
-            customerId,
+          bookingId: guest.bookingId,
+          isPrimary: true,
+          id: {
+            not: guestId,
           },
         },
       });
 
-    if (!guest) {
-      throw new NotFoundException(
-        'Guest not found',
-      );
-    }
-
-    if (dto.isPrimary === true) {
-      const existingPrimary =
-        await this.prisma.guest.findFirst({
-          where: {
-            bookingId: guest.bookingId,
-            isPrimary: true,
-            id: {
-              not: guestId,
-            },
-          },
-        });
-
       if (existingPrimary) {
-        throw new ConflictException(
-          'This booking already has a primary guest',
-        );
+        throw new ConflictException('This booking already has a primary guest');
       }
     }
 
@@ -182,30 +152,22 @@ export class GuestsService {
   // DELETE GUEST
   // ==================================================
 
-  async deleteGuest(
-    customerId: string,
-    guestId: string,
-  ) {
-    const guest =
-      await this.prisma.guest.findFirst({
-        where: {
-          id: guestId,
-          booking: {
-            customerId,
-          },
+  async deleteGuest(customerId: string, guestId: string) {
+    const guest = await this.prisma.guest.findFirst({
+      where: {
+        id: guestId,
+        booking: {
+          customerId,
         },
-      });
+      },
+    });
 
     if (!guest) {
-      throw new NotFoundException(
-        'Guest not found',
-      );
+      throw new NotFoundException('Guest not found');
     }
 
     if (guest.isPrimary) {
-      throw new ConflictException(
-        'Primary guest cannot be deleted',
-      );
+      throw new ConflictException('Primary guest cannot be deleted');
     }
 
     await this.prisma.guest.delete({

@@ -1,8 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 
 import { CheckAvailabilityDto } from './dto/check-availability.dto.js';
 import { RoomsService } from './rooms.service.js';

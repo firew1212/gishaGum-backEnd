@@ -6,16 +6,10 @@ import { ReportsService } from './reports.service.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 
 @Module({
-  imports: [
-    PrismaModule,
-  ],
+  imports: [PrismaModule],
 
-  controllers: [
-    ReportsController,
-  ],
+  controllers: [ReportsController],
 
-  providers: [
-    ReportsService,
-  ],
+  providers: [ReportsService],
 })
 export class ReportsModule {}
