@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: hotel-backend
+    runtime: node
+    rootDir: .
+    buildCommand: npm ci && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm run start:prod
+    healthCheckPath: /api
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CHAPA_SECRET_KEY
+        sync: false
+      - key: CHAPA_BASE_URL
+        sync: false
+      - key: CHAPA_CALLBACK_URL
+        sync: false
+      - key: CHAPA_RETURN_URL
+        sync: false
