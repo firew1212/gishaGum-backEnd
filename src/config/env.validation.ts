@@ -1,6 +1,24 @@
-import { IsNotEmpty, IsString, IsUrl, validateSync } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+  ValidateIf,
+  validateSync,
+} from 'class-validator';
 
 export class EnvironmentVariables {
+  @ValidateIf(
+    (environment: EnvironmentVariables) =>
+      environment.NODE_ENV === 'production',
+  )
+  @IsUrl()
+  FRONTEND_URL!: string;
+
+  @IsOptional()
+  @IsString()
+  NODE_ENV?: string;
+
   @IsString()
   @IsNotEmpty()
   DATABASE_URL!: string;
